@@ -137,19 +137,20 @@ action :create do
   nginx_site new_resource.site do
     template "nginx_imagery.conf.erb"
     directory "/srv/imagery/#{new_resource.site}"
-    restart_nginx false
     variables new_resource.to_hash
   end
 end
 
 action :delete do
-  service "mapserv-fcgi-#{new_resource.site}" do
-    provider Chef::Provider::Service::Systemd
-    action [:stop, :disable]
-  end
+  %w[0 1 2 3 4 5 6 7].each do |index|
+    service "mapserv-fcgi-#{new_resource.site}-#{index}" do
+      provider Chef::Provider::Service::Systemd
+      action [:stop, :disable]
+    end
 
-  systemd_service "mapserv-fcgi-#{new_resource.site}" do
-    action :delete
+    systemd_service "mapserv-fcgi-#{new_resource.site}-#{index}" do
+      action :delete
+    end
   end
 
   nginx_site new_resource.site do

@@ -20,7 +20,13 @@
 include_recipe "wordpress"
 include_recipe "mysql"
 
-package "wkhtmltopdf"
+package %w[
+  rsync
+  unzip
+  wkhtmltopdf
+]
+
+cache_dir = Chef::Config[:file_cache_path]
 
 passwords = data_bag_item("civicrm", "passwords")
 
@@ -44,7 +50,7 @@ end
 
 wordpress_theme "osmblog-wp-theme" do
   site "join.osmfoundation.org"
-  repository "git://github.com/harry-wood/osmblog-wp-theme.git"
+  repository "https://github.com/harry-wood/osmblog-wp-theme.git"
 end
 
 wordpress_plugin "registration-honeypot" do
@@ -54,6 +60,7 @@ end
 wordpress_plugin "sitepress-multilingual-cms" do
   site "join.osmfoundation.org"
   repository "https://git.openstreetmap.org/private/sitepress-multilingual-cms.git"
+  not_if { ENV["TEST_KITCHEN"] }
 end
 
 wordpress_plugin "contact-form-7" do
@@ -69,7 +76,7 @@ directory "/opt/civicrm-#{civicrm_version}" do
   mode 0o755
 end
 
-remote_file "/var/cache/chef/civicrm-#{civicrm_version}-wordpress.zip" do
+remote_file "#{cache_dir}/civicrm-#{civicrm_version}-wordpress.zip" do
   action :create_if_missing
   source "https://download.civicrm.org/civicrm-#{civicrm_version}-wordpress.zip"
   owner "wordpress"
@@ -78,7 +85,7 @@ remote_file "/var/cache/chef/civicrm-#{civicrm_version}-wordpress.zip" do
   backup false
 end
 
-remote_file "/var/cache/chef/civicrm-#{civicrm_version}-l10n.tar.gz" do
+remote_file "#{cache_dir}/civicrm-#{civicrm_version}-l10n.tar.gz" do
   action :create_if_missing
   source "https://download.civicrm.org/civicrm-#{civicrm_version}-l10n.tar.gz"
   owner "wordpress"
@@ -87,22 +94,22 @@ remote_file "/var/cache/chef/civicrm-#{civicrm_version}-l10n.tar.gz" do
   backup false
 end
 
-execute "/var/cache/chef/civicrm-#{civicrm_version}-wordpress.zip" do
+execute "#{cache_dir}/civicrm-#{civicrm_version}-wordpress.zip" do
   action :nothing
-  command "unzip -qq /var/cache/chef/civicrm-#{civicrm_version}-wordpress.zip"
+  command "unzip -o -qq #{cache_dir}/civicrm-#{civicrm_version}-wordpress.zip"
   cwd "/opt/civicrm-#{civicrm_version}"
   user "wordpress"
   group "wordpress"
-  subscribes :run, "remote_file[/var/cache/chef/civicrm-#{civicrm_version}-wordpress.zip]", :immediately
+  subscribes :run, "remote_file[#{cache_dir}/civicrm-#{civicrm_version}-wordpress.zip]", :immediately
 end
 
-execute "/var/cache/chef/civicrm-#{civicrm_version}-l10n.tar.gz" do
+execute "#{cache_dir}/civicrm-#{civicrm_version}-l10n.tar.gz" do
   action :nothing
-  command "tar -zxf /var/cache/chef/civicrm-#{civicrm_version}-l10n.tar.gz"
+  command "tar -zxf #{cache_dir}/civicrm-#{civicrm_version}-l10n.tar.gz"
   cwd "/opt/civicrm-#{civicrm_version}/civicrm"
   user "wordpress"
   group "wordpress"
-  subscribes :run, "remote_file[/var/cache/chef/civicrm-#{civicrm_version}-l10n.tar.gz]", :immediately
+  subscribes :run, "remote_file[#{cache_dir}/civicrm-#{civicrm_version}-l10n.tar.gz]", :immediately
 end
 
 execute "/opt/civicrm-#{civicrm_version}/civicrm" do
@@ -110,8 +117,8 @@ execute "/opt/civicrm-#{civicrm_version}/civicrm" do
   command "rsync --archive --delete /opt/civicrm-#{civicrm_version}/civicrm/ #{civicrm_directory}"
   user "wordpress"
   group "wordpress"
-  subscribes :run, "execute[/var/cache/chef/civicrm-#{civicrm_version}-wordpress.zip]", :immediately
-  subscribes :run, "execute[/var/cache/chef/civicrm-#{civicrm_version}-l10n.tar.gz]", :immediately
+  subscribes :run, "execute[#{cache_dir}/civicrm-#{civicrm_version}-wordpress.zip]", :immediately
+  subscribes :run, "execute[#{cache_dir}/civicrm-#{civicrm_version}-l10n.tar.gz]", :immediately
 end
 
 directory "/srv/join.osmfoundation.org/wp-content/plugins/files" do
@@ -133,6 +140,7 @@ node[:civicrm][:extensions].each_value do |details|
     action :sync
     repository details[:repository]
     revision details[:revision]
+    depth 1
     user "wordpress"
     group "wordpress"
   end

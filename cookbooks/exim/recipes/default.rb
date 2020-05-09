@@ -17,6 +17,7 @@
 # limitations under the License.
 #
 
+include_recipe "munin"
 include_recipe "networking"
 
 package %w[
@@ -25,7 +26,9 @@ package %w[
   ssl-cert
 ]
 
-package "exim4-daemon-heavy" if File.exist?("/var/run/clamav/clamd.ctl")
+package "exim4-daemon-heavy" do
+  only_if { ::File.exist?("/var/run/clamav/clamd.ctl") }
+end
 
 group "ssl-cert" do
   action :modify
@@ -76,12 +79,75 @@ if node[:exim][:smarthost_name]
   search(:node, "exim_smarthost_via:#{node[:exim][:smarthost_name]}\\:*").each do |host|
     relay_from_hosts |= host.ipaddresses(:role => :external)
   end
+
+  domains = node[:exim][:certificate_names].select { |c| c =~ /^a\.mx\./ }.collect { |c| c.sub(/^a\.mx./, "") }
+  primary_domain = domains.first
+
+  directory "/srv/mta-sts.#{primary_domain}" do
+    owner "root"
+    group "root"
+    mode 0o755
+  end
+
+  domains.each do |domain|
+    template "/srv/mta-sts.#{primary_domain}/#{domain}.txt" do
+      source "mta-sts.erb"
+      owner "root"
+      group "root"
+      mode 0o644
+      variables :domain => domain
+    end
+  end
+
+  ssl_certificate "mta-sts.#{primary_domain}" do
+    domains domains.collect { |d| "mta-sts.#{d}" }
+    notifies :reload, "service[apache2]"
+  end
+
+  apache_site "mta-sts.#{primary_domain}" do
+    template "apache-mta-sts.erb"
+    directory "/srv/mta-sts.#{primary_domain}"
+    variables :domains => domains
+  end
 end
 
 file "/etc/exim4/blocked-senders" do
   owner "root"
   group "Debian-exim"
   mode 0o644
+end
+
+if node[:exim][:dkim_selectors]
+  keys = data_bag_item("exim", "dkim")
+
+  template "/etc/exim4/dkim-domains" do
+    owner "root"
+    source "dkim-domains.erb"
+    group "Debian-exim"
+    mode 0o644
+  end
+
+  template "/etc/exim4/dkim-selectors" do
+    owner "root"
+    source "dkim-selectors.erb"
+    group "Debian-exim"
+    mode 0o644
+  end
+
+  directory "/etc/exim4/dkim-keys" do
+    owner "root"
+    group "Debian-exim"
+    mode 0o755
+  end
+
+  node[:exim][:dkim_selectors].each do |domain, _selector|
+    file "/etc/exim4/dkim-keys/#{domain}" do
+      content keys[domain].join("\n")
+      owner "root"
+      group "Debian-exim"
+      mode 0o640
+    end
+  end
 end
 
 template "/etc/exim4/exim4.conf" do

@@ -2,19 +2,7 @@ name "forum"
 description "Role applied to all forum servers"
 
 default_attributes(
-  :accounts => {
-    :users => {
-      :lambertus => {
-        :status => :administrator
-      },
-      :forum => {
-        :status => :role,
-        :members => [:lambertus, :grant]
-      }
-    }
-  },
   :apache => {
-    :mpm => "prefork",
     :timeout => 60,
     :keepalive => false,
     :prefork => {

@@ -5,7 +5,6 @@ default_attributes(
   :accounts => {
     :users => {
       :tile => {
-        :status => :role,
         :members => [:jburgess, :tomh]
       }
     }
@@ -20,7 +19,8 @@ default_attributes(
       :min_spare_threads => 300,
       :max_spare_threads => 1200,
       :max_connections_per_child => 0,
-      :async_request_worker_factor => 4
+      :async_request_worker_factor => 4,
+      :listen_cores_buckets_ratio => 6
     }
   },
   :munin => {
@@ -44,11 +44,15 @@ default_attributes(
         :checkpoint_segments => "60",
         :max_wal_size => "2880MB",
         :random_page_cost => "1.1",
+        :jit => "off",
         :track_activity_query_size => "16384",
         :autovacuum_vacuum_scale_factor => "0.05",
         :autovacuum_analyze_scale_factor => "0.02"
       }
     }
+  },
+  :ssl => {
+    :ct_report_uri => false
   },
   :sysctl => {
     :sockets => {
@@ -66,6 +70,10 @@ default_attributes(
     }
   },
   :tile => {
+    :database => {
+      :style_file => "/srv/tile.openstreetmap.org/styles/default/openstreetmap-carto.style",
+      :tag_transform_script => "/srv/tile.openstreetmap.org/styles/default/openstreetmap-carto.lua"
+    },
     :data => {
       :simplified_land_polygons => {
         :url => "https://osmdata.openstreetmap.de/download/simplified-land-polygons-complete-3857.zip",
@@ -98,8 +106,8 @@ default_attributes(
     },
     :styles => {
       :default => {
-        :repository => "git://github.com/gravitystorm/openstreetmap-carto.git",
-        :revision => "v4.23.0",
+        :repository => "https://github.com/gravitystorm/openstreetmap-carto.git",
+        :revision => "v5.2.0",
         :max_zoom => 19
       }
     }

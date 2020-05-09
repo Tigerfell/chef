@@ -4,15 +4,17 @@ description "Role applied to all imagery servers"
 default_attributes(
   :accounts => {
     :users => {
+      :dmlu => { :status => :user },
       :htonl => { :status => :user },
+      :stereo => { :status => :user },
       :imagery => {
         :status => :role,
-        :members => [:grant, :tomh, :htonl]
+        :members => [:grant, :tomh, :dmlu, :htonl, :stereo ]
       }
     }
   },
   :apt => {
-    :sources => %w[nginx ubuntugis-unstable]
+    :sources => %w[ubuntugis-unstable]
   },
   :sysctl => {
     :sockets => {
@@ -55,5 +57,7 @@ run_list(
   "recipe[imagery::gb_surrey_aerial]",
   "recipe[imagery::za_ngi_topo]",
   "recipe[imagery::za_coct_aerial]",
-  "recipe[imagery::na_sgswa_topo]"
+  "recipe[imagery::na_sgswa_topo]",
+  "recipe[imagery::lu_ngl_dtm]",
+  "recipe[imagery::lu_lidar_hillshade]"
 )

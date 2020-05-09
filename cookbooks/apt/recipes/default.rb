@@ -73,6 +73,16 @@ apt_repository "ubuntugis-unstable" do
   uri "ppa:ubuntugis/ubuntugis-unstable"
 end
 
+apt_repository "git-core" do
+  action repository_actions["git-core"]
+  uri "ppa:git-core/ppa"
+end
+
+apt_repository "maxmind" do
+  action repository_actions["maxmind"]
+  uri "ppa:maxmind/ppa"
+end
+
 apt_repository "openstreetmap" do
   action repository_actions["openstreetmap"]
   uri "ppa:osmadmins/ppa"
@@ -153,7 +163,15 @@ apt_repository "mediawiki" do
   uri "https://releases.wikimedia.org/debian"
   distribution "jessie-mediawiki"
   components ["main"]
-  key "90E9F83F22250DD7"
+  key "AF380A3036A03444"
+end
+
+apt_repository "docker" do
+  action repository_actions["docker"]
+  uri "https://download.docker.com/linux/ubuntu"
+  arch "amd64"
+  components ["stable"]
+  key "https://download.docker.com/linux/ubuntu/gpg"
 end
 
 package "unattended-upgrades"

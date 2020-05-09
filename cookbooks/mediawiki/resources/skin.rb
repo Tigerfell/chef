@@ -19,7 +19,7 @@
 
 default_action :create
 
-property :skin, :kind_of => String, :name_attribute => true
+property :skin, :kind_of => String, :name_property => true
 property :site, :kind_of => String, :required => true
 property :source, :kind_of => String
 property :template, :kind_of => String
@@ -53,7 +53,7 @@ action :create do
       enable_submodules true
       user node[:mediawiki][:user]
       group node[:mediawiki][:group]
-      ignore_failure skin_repository.start_with?("git://github.com/wikimedia/mediawiki-skins")
+      ignore_failure skin_repository.start_with?("https://github.com/wikimedia/mediawiki-skins")
     end
   end
 
@@ -114,7 +114,7 @@ action_class do
   end
 
   def default_repository
-    "git://github.com/wikimedia/mediawiki-skins-#{new_resource.skin}.git"
+    "https://github.com/wikimedia/mediawiki-skins-#{new_resource.skin}.git"
   end
 end
 

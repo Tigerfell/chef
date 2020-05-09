@@ -34,7 +34,16 @@ package %w[
   libyaml-perl
   libwww-perl
   libjson-xs-perl
+  sshfp
 ]
+
+remote_file "/usr/local/bin/dnscontrol" do
+  action :create
+  source "https://github.com/StackExchange/dnscontrol/releases/download/v3.0.0/dnscontrol-Linux"
+  owner "root"
+  group "root"
+  mode 0o755
+end
 
 directory "/srv/dns.openstreetmap.org" do
   owner "root"
@@ -107,6 +116,14 @@ directory "/var/lib/dns" do
   group "git"
   mode 0o2775
   notifies :run, "execute[dns-update]"
+end
+
+template "/var/lib/dns/creds.json" do
+  source "creds.json.erb"
+  owner "git"
+  group "git"
+  mode 0o440
+  variables :passwords => passwords
 end
 
 cookbook_file "#{node[:dns][:repository]}/hooks/post-receive" do

@@ -17,6 +17,7 @@
 # limitations under the License.
 #
 
+include_recipe "accounts"
 include_recipe "apache"
 include_recipe "mysql"
 include_recipe "git"
@@ -53,7 +54,8 @@ end
 
 git "/srv/donate.openstreetmap.org" do
   action :sync
-  repository "git://github.com/osmfoundation/donation-drive.git"
+  repository "https://github.com/osmfoundation/donation-drive.git"
+  depth 1
   user "donate"
   group "donate"
 end

@@ -19,7 +19,7 @@
 
 default_action :create
 
-property :plugin, :kind_of => String, :name_attribute => true
+property :plugin, :kind_of => String, :name_property => true
 property :target, :kind_of => String
 property :conf, :kind_of => String
 property :conf_cookbook, :kind_of => String
@@ -81,5 +81,5 @@ action_class do
 end
 
 def after_created
-  notifies :restart, "service[munin-node]" if restart_munin && node[:recipes].include?("munin")
+  notifies :restart, "service[munin-node]" if restart_munin
 end

@@ -23,6 +23,8 @@
 require "ipaddr"
 require "yaml"
 
+package "netplan.io"
+
 netplan = {
   "network" => {
     "version" => 2,
@@ -39,6 +41,7 @@ node[:networking][:interfaces].each do |name, interface|
       if role[interface[:family]]
         node.normal[:networking][:interfaces][name][:prefix] = role[interface[:family]][:prefix]
         node.normal[:networking][:interfaces][name][:gateway] = role[interface[:family]][:gateway]
+        node.normal[:networking][:interfaces][name][:routes] = role[interface[:family]][:routes]
       end
 
       node.normal[:networking][:interfaces][name][:metric] = role[:metric]
@@ -124,6 +127,20 @@ node[:networking][:interfaces].each do |name, interface|
         )
       end
     end
+
+    if interface[:routes]
+      interface[:routes].each do |to, parameters|
+        route = {
+          "to" => to
+        }
+
+        route["type"] = parameters[:type] if parameters[:type]
+        route["via"] = parameters[:via] if parameters[:via]
+        route["metric"] = parameters[:metric] if parameters[:metric]
+
+        deviceplan["routes"].push(route)
+      end
+    end
   else
     node.rm(:networking, :interfaces, name)
   end
@@ -160,17 +177,15 @@ package "cloud-init" do
   action :purge
 end
 
-execute "hostname" do
+ohai "reload-hostname" do
   action :nothing
-  command "/bin/hostname -F /etc/hostname"
+  plugin "hostname"
 end
 
-template "/etc/hostname" do
-  source "hostname.erb"
-  owner "root"
-  group "root"
-  mode 0o644
-  notifies :run, "execute[hostname]"
+execute "hostnamectl-set-static" do
+  command "hostnamectl set-static #{node[:networking][:hostname]}"
+  notifies :reload, "ohai[reload-hostname]"
+  not_if { ENV.key?("TEST_KITCHEN") || node[:hostnamectl][:static_hostname] == node[:networking][:hostname] }
 end
 
 template "/etc/hosts" do
@@ -178,6 +193,7 @@ template "/etc/hosts" do
   owner "root"
   group "root"
   mode 0o644
+  not_if { ENV["TEST_KITCHEN"] }
 end
 
 service "systemd-resolved" do
@@ -195,7 +211,18 @@ template "/etc/systemd/resolved.conf.d/99-chef.conf" do
   owner "root"
   group "root"
   mode 0o644
-  notifies :restart, "service[systemd-resolved]"
+  notifies :restart, "service[systemd-resolved]", :immediately
+end
+
+if node[:filesystem][:by_mountpoint][:"/etc/resolv.conf"]
+  mount "/etc/resolv.conf" do
+    action :umount
+    device node[:filesystem][:by_mountpoint][:"/etc/resolv.conf"][:devices].first
+  end
+end
+
+link "/etc/resolv.conf" do
+  to "../run/systemd/resolve/stub-resolv.conf"
 end
 
 if node[:networking][:tcp_fastopen_key]

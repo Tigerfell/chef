@@ -17,6 +17,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+include_recipe "munin"
+
 package %w[
   chrony
   tzdata
@@ -46,6 +48,13 @@ end
 
 service "systemd-timesyncd" do
   action [:stop, :disable]
+end
+
+systemd_service "chrony-restart" do
+  service "chrony"
+  dropin "restart"
+  restart "on-failure"
+  notifies :restart, "service[chrony]"
 end
 
 service "chrony" do

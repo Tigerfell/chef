@@ -19,6 +19,7 @@
 
 require "yaml"
 
+include_recipe "accounts"
 include_recipe "apache"
 
 apache_module "proxy_http"
@@ -26,8 +27,8 @@ apache_module "proxy_http"
 version = node[:kibana][:version]
 
 remote_file "#{Chef::Config[:file_cache_path]}/kibana-#{version}.tar.gz" do
-  source "https://download.elastic.co/kibana/kibana/kibana-4.1.1-linux-x64.tar.gz"
-  not_if { File.exist?("/opt/kibana-#{version}/bin/kibana") }
+  source "https://download.elastic.co/kibana/kibana/kibana-#{version}-linux-x64.tar.gz"
+  not_if { ::File.exist?("/opt/kibana-#{version}/bin/kibana") }
 end
 
 directory "/opt/kibana-#{version}" do
@@ -41,7 +42,7 @@ execute "unzip-kibana-#{version}" do
   cwd "/opt/kibana-#{version}"
   user "root"
   group "root"
-  not_if { File.exist?("/opt/kibana-#{version}/bin/kibana") }
+  not_if { ::File.exist?("/opt/kibana-#{version}/bin/kibana") }
 end
 
 directory "/etc/kibana" do

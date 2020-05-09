@@ -17,6 +17,9 @@
 # limitations under the License.
 #
 
+include_recipe "apt"
+include_recipe "munin"
+
 if node[:squid][:version] >= 3
   apt_package "squid" do
     action :unlock
@@ -85,40 +88,38 @@ systemd_tmpfile "/var/run/squid" do
   mode "0755"
 end
 
-address_families = %w[AF_UNIX AF_INET]
-
-# address_families << "AF_INET6" unless node.interfaces(:family => :inet6).empty?
+address_families = %w[AF_UNIX AF_INET AF_INET6]
 
 systemd_service "squid" do
   description "Squid caching proxy"
   after ["network.target", "nss-lookup.target"]
   type "forking"
   limit_nofile 98304
-  exec_start_pre "/usr/sbin/squid -N -z"
-  exec_start "/usr/sbin/squid -Y"
-  exec_reload "/usr/sbin/squid -k reconfigure"
-  exec_stop "/usr/sbin/squid -k shutdown"
+  exec_start_pre "/usr/sbin/squid --foreground -z"
+  exec_start "/usr/sbin/squid -YC"
+  exec_reload "/bin/kill -HUP $MAINPID"
+  pid_file "/var/run/squid.pid"
   private_tmp true
   private_devices true
   protect_system "full"
   protect_home true
   restrict_address_families address_families
-  restart "on-failure"
-  timeout_sec 0
+  restart "always"
+  kill_mode "mixed"
 end
 
 service "squid" do
   action [:enable, :start]
   subscribes :restart, "systemd_service[squid]"
-  subscribes :reload, "template[/etc/squid/squid.conf]"
+  subscribes :restart, "template[/etc/squid/squid.conf]"
   subscribes :reload, "template[/etc/resolv.conf]"
 end
 
-log "squid-restart" do
-  message "Restarting squid due to counter wraparound"
-  notifies :restart, "service[squid]"
+service "squid-restart" do
+  service_name "squid"
+  action :restart
   only_if do
-    IO.popen(["squidclient", "--host=127.0.0.1", "--port=80", "mgr:counters"]) do |io|
+    IO.popen(["squidclient", "--host=127.0.0.1", "--port=3128", "mgr:counters"]) do |io|
       io.each.grep(/^[a-z][a-z_.]+ = -[0-9]+$/).count.positive?
     end
   end

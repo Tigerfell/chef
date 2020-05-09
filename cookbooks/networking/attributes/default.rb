@@ -9,3 +9,5 @@ default[:networking][:firewall][:mangle] = true
 default[:networking][:interfaces] = {}
 default[:networking][:nameservers] = []
 default[:networking][:search] = []
+default[:networking][:dnssec] = "allow-downgrade"
+default[:networking][:hostname] = node.name

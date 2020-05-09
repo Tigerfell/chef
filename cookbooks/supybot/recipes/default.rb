@@ -17,6 +17,8 @@
 # limitations under the License.
 #
 
+include_recipe "accounts"
+
 users = data_bag_item("supybot", "users")
 passwords = data_bag_item("supybot", "passwords")
 
@@ -117,8 +119,9 @@ end
 
 git "/usr/local/lib/supybot/plugins/Git" do
   action :sync
-  repository "git://github.com/openstreetmap/supybot-git"
+  repository "https://github.com/openstreetmap/supybot-git"
   revision "master"
+  depth 1
   user "root"
   group "root"
 end

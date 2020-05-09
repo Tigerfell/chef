@@ -19,6 +19,7 @@
 
 require "json"
 
+include_recipe "accounts"
 include_recipe "apache"
 include_recipe "passenger"
 include_recipe "git"
@@ -54,6 +55,7 @@ package "ruby#{ruby_version}"
 
 gem_package "bundler#{ruby_version}" do
   package_name "bundler"
+  version "~> 1.16.2"
   gem_binary "gem#{ruby_version}"
   options "--format-executable"
 end
@@ -98,8 +100,9 @@ node[:taginfo][:sites].each do |site|
 
   git "#{directory}/taginfo" do
     action :sync
-    repository "git://github.com/taginfo/taginfo.git"
+    repository "https://github.com/taginfo/taginfo.git"
     revision "osmorg-taginfo-live"
+    depth 1
     user "taginfo"
     group "taginfo"
   end

@@ -17,8 +17,11 @@
 # limitations under the License.
 #
 
-include_recipe "tools"
+include_recipe "apt"
+include_recipe "git"
 include_recipe "munin"
+include_recipe "sysfs"
+include_recipe "tools"
 
 ohai_plugin "hardware" do
   template "ohai.rb.erb"
@@ -91,6 +94,26 @@ when "Supermicro"
   end
 when "IBM"
   units << "0"
+when "VMware, Inc."
+  package "open-vm-tools"
+
+  # Remove timeSync plugin completely
+  # https://github.com/vmware/open-vm-tools/issues/302
+  file "/usr/lib/open-vm-tools/plugins/vmsvc/libtimeSync.so" do
+    action :delete
+    notifies :restart, "service[open-vm-tools]"
+  end
+
+  # Attempt to tell Host we are not interested in timeSync
+  execute "vmware-toolbox-cmd-timesync-disable" do
+    command "/usr/bin/vmware-toolbox-cmd timesync disable"
+    ignore_failure true
+  end
+
+  service "open-vm-tools" do
+    action [:enable, :start]
+    supports :status => true, :restart => true
+  end
 end
 
 units.sort.uniq.each do |unit|
@@ -158,17 +181,9 @@ package "ipmitool" if node[:kernel][:modules].include?("ipmi_si")
 
 package "irqbalance"
 
-template "/etc/default/irqbalance" do
-  source "irqbalance.erb"
-  owner "root"
-  group "root"
-  mode 0o644
-end
-
 service "irqbalance" do
   action [:start, :enable]
   supports :status => false, :restart => true, :reload => false
-  subscribes :restart, "template[/etc/default/irqbalance]"
 end
 
 # Link Layer Discovery Protocol Daemon
@@ -181,42 +196,48 @@ end
 tools_packages = []
 status_packages = {}
 
-node[:kernel][:modules].each_key do |modname|
-  case modname
-  when "cciss"
-    tools_packages << "ssacli"
-    status_packages["cciss-vol-status"] ||= []
-  when "hpsa"
-    tools_packages << "ssacli"
-    status_packages["cciss-vol-status"] ||= []
-  when "mptsas"
-    tools_packages << "lsiutil"
-    status_packages["mpt-status"] ||= []
-  when "mpt2sas", "mpt3sas"
-    tools_packages << "sas2ircu"
-    status_packages["sas2ircu-status"] ||= []
-  when "megaraid_mm"
-    tools_packages << "megactl"
-    status_packages["megaraid-status"] ||= []
-  when "megaraid_sas"
-    tools_packages << "megacli"
-    status_packages["megaclisas-status"] ||= []
-  when "aacraid"
-    tools_packages << "arcconf"
-    status_packages["aacraid-status"] ||= []
-  when "arcmsr"
-    tools_packages << "areca"
+if node[:virtualization][:role] != "guest" ||
+   (node[:virtualization][:system] != "lxc" &&
+    node[:virtualization][:system] != "lxd" &&
+    node[:virtualization][:system] != "openvz")
+
+  node[:kernel][:modules].each_key do |modname|
+    case modname
+    when "cciss"
+      tools_packages << "ssacli"
+      status_packages["cciss-vol-status"] ||= []
+    when "hpsa"
+      tools_packages << "ssacli"
+      status_packages["cciss-vol-status"] ||= []
+    when "mptsas"
+      tools_packages << "lsiutil"
+      status_packages["mpt-status"] ||= []
+    when "mpt2sas", "mpt3sas"
+      tools_packages << "sas2ircu"
+      status_packages["sas2ircu-status"] ||= []
+    when "megaraid_mm"
+      tools_packages << "megactl"
+      status_packages["megaraid-status"] ||= []
+    when "megaraid_sas"
+      tools_packages << "megacli"
+      status_packages["megaclisas-status"] ||= []
+    when "aacraid"
+      tools_packages << "arcconf"
+      status_packages["aacraid-status"] ||= []
+    when "arcmsr"
+      tools_packages << "areca"
+    end
   end
-end
 
-node[:block_device].each do |name, attributes|
-  next unless attributes[:vendor] == "HP" && attributes[:model] == "LOGICAL VOLUME"
+  node[:block_device].each do |name, attributes|
+    next unless attributes[:vendor] == "HP" && attributes[:model] == "LOGICAL VOLUME"
 
-  if name =~ /^cciss!(c[0-9]+)d[0-9]+$/
-    status_packages["cciss-vol-status"] |= ["cciss/#{Regexp.last_match[1]}d0"]
-  else
-    Dir.glob("/sys/block/#{name}/device/scsi_generic/*").each do |sg|
-      status_packages["cciss-vol-status"] |= [File.basename(sg)]
+    if name =~ /^cciss!(c[0-9]+)d[0-9]+$/
+      status_packages["cciss-vol-status"] |= ["cciss/#{Regexp.last_match[1]}d0"]
+    else
+      Dir.glob("/sys/block/#{name}/device/scsi_generic/*").each do |sg|
+        status_packages["cciss-vol-status"] |= [File.basename(sg)]
+      end
     end
   end
 end
@@ -237,8 +258,10 @@ if tools_packages.include?("areca")
   git "/opt/areca" do
     action :sync
     repository "https://git.openstreetmap.org/private/areca.git"
+    depth 1
     user "root"
     group "root"
+    not_if { ENV["TEST_KITCHEN"] }
   end
 else
   directory "/opt/areca" do
@@ -264,6 +287,14 @@ if status_packages.include?("cciss-vol-status")
     protect_home true
     no_new_privileges true
     notifies :restart, "service[cciss-vol-statusd]"
+  end
+else
+  systemd_service "cciss-vol-statusd" do
+    action :delete
+  end
+
+  template "/usr/local/bin/cciss-vol-statusd" do
+    action :delete
   end
 end
 
@@ -314,10 +345,10 @@ intel_nvmes = nvmes.select { |pci| pci[:vendor_name] == "Intel Corporation" }
 if !intel_ssds.empty? || !intel_nvmes.empty?
   package "unzip"
 
-  intel_ssd_tool_version = "3.0.19"
+  intel_ssd_tool_version = "3.0.24"
 
   remote_file "#{Chef::Config[:file_cache_path]}/Intel_SSD_Data_Center_Tool_#{intel_ssd_tool_version}_Linux.zip" do
-    source "https://downloadmirror.intel.com/28639/eng/Intel_SSD_Data_Center_Tool_#{intel_ssd_tool_version}_Linux.zip"
+    source "https://downloadmirror.intel.com/29399/eng/Intel_SSD_DCT_#{intel_ssd_tool_version}_Linux%20.zip"
   end
 
   execute "#{Chef::Config[:file_cache_path]}/Intel_SSD_Data_Center_Tool_#{intel_ssd_tool_version}_Linux.zip" do
@@ -325,7 +356,7 @@ if !intel_ssds.empty? || !intel_nvmes.empty?
     cwd Chef::Config[:file_cache_path]
     user "root"
     group "root"
-    not_if { File.exist?("#{Chef::Config[:file_cache_path]}/isdct_#{intel_ssd_tool_version}-1_amd64.deb") }
+    not_if { ::File.exist?("#{Chef::Config[:file_cache_path]}/isdct_#{intel_ssd_tool_version}-1_amd64.deb") }
   end
 
   dpkg_package "isdct" do
@@ -537,10 +568,18 @@ unless Dir.glob("/sys/class/hwmon/hwmon*").empty?
 end
 
 if node[:hardware][:shm_size]
+  execute "remount-dev-shm" do
+    action :nothing
+    command "/bin/mount -o remount /dev/shm"
+    user "root"
+    group "root"
+  end
+
   mount "/dev/shm" do
-    action [:mount, :enable]
+    action :enable
     device "tmpfs"
     fstype "tmpfs"
     options "rw,nosuid,nodev,size=#{node[:hardware][:shm_size]}"
+    notifies :run, "execute[remount-dev-shm]"
   end
 end

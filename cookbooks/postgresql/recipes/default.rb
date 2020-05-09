@@ -17,6 +17,10 @@
 # limitations under the License.
 #
 
+include_recipe "apt"
+include_recipe "munin"
+
+package "locales-all"
 package "postgresql-common"
 
 node[:postgresql][:versions].each do |version|

@@ -1,6 +1,7 @@
 # OpenStreetMap chef cookbooks
 
-[![Build Status](https://travis-ci.org/openstreetmap/chef.svg?branch=master)](https://travis-ci.org/openstreetmap/chef)
+[![Cookstyle](https://github.com/openstreetmap/chef/workflows/Cookstyle/badge.svg?branch=master&event=push)](https://github.com/openstreetmap/chef/actions?query=workflow%3ACookstyle%20branch%3Amaster%20event%3Apush)
+[![Test Kitchen](https://github.com/openstreetmap/chef/workflows/Test%20Kitchen/badge.svg?branch=master&event=push)](https://github.com/openstreetmap/chef/actions?query=workflow%3A%22Test+Kitchen%22%20branch%3Amaster%20event%3Apush)
 
 This repository manages the configuration of all the servers run by the
 OpenStreetMap Foundation's Operations Working Group. We use

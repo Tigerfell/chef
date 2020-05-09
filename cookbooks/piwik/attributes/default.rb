@@ -1,4 +1,4 @@
-default[:piwik][:version] = "3.11.0"
+default[:piwik][:version] = "3.13.5"
 default[:piwik][:plugins] = %w[
   Actions Annotations API BulkTracking Contents CoreAdminHome CoreConsole
   CoreHome CorePluginsAdmin CoreUpdater CoreVisualizations CustomPiwikJs
@@ -11,3 +11,5 @@ default[:piwik][:plugins] = %w[
   VisitFrequency VisitorInterest VisitsSummary VisitTime WebsiteMeasurable
   Widgetize
 ]
+
+override[:apache][:mpm] = "prefork"

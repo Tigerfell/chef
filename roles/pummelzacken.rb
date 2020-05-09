@@ -19,7 +19,7 @@ default_attributes(
     }
   },
   :postgresql => {
-    :versions => ["10"],
+    :versions => ["12"],
     :settings => {
       :defaults => {
         :listen_addresses => "10.0.0.20",
@@ -27,15 +27,22 @@ default_attributes(
         :maintenance_work_mem => "10GB",
         :random_page_cost => "1.5",
         :effective_cache_size => "60GB",
+        :effective_io_concurrency => "256",
         :fsync => "on"
       }
+    }
+  },
+  :apache => {
+    :event => {
+      :max_request_workers => 3000,
+      :threads_per_child => 70
     }
   },
   :nominatim => {
     :state => "standalone",
     :dbadmins => %w[lonvia tomh],
-    :dbcluster => "10/main",
-    :postgis => "2.4",
+    :dbcluster => "12/main",
+    :postgis => "2.5",
     :enable_backup => true,
     :flatnode_file => "/ssd/nominatim/nodes.store",
     :tablespaces => {
@@ -49,11 +56,6 @@ default_attributes(
       "isearch" => "/ssd/tablespaces/isearch",
       "daux" => "/data/tablespaces/daux",
       "iaux" => "/data/tablespaces/iaux"
-    },
-    :fpm_pools => {
-      :www => {
-        :max_children => "40"
-      }
     }
   }
 )

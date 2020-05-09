@@ -19,7 +19,7 @@
 
 default_action :create
 
-property :site, :kind_of => String, :name_attribute => true
+property :site, :kind_of => String, :name_property => true
 property :aliases, :kind_of => [String, Array]
 property :directory, :kind_of => String
 property :version, :kind_of => String, :default => "1.33"
@@ -109,6 +109,7 @@ action :create do
     action :sync
     repository "https://gerrit.wikimedia.org/r/p/mediawiki/core.git"
     revision mediawiki_reference
+    depth 1
     user node[:mediawiki][:user]
     group node[:mediawiki][:group]
     notifies :run, "execute[#{mediawiki_directory}/composer.json]", :immediately
@@ -418,7 +419,7 @@ action :create do
   mediawiki_extension "osmtaginfo" do
     site new_resource.site
     template "mw-ext-osmtaginfo.inc.php.erb"
-    repository "git://github.com/Firefishy/osmtaginfo.git"
+    repository "https://github.com/Firefishy/osmtaginfo.git"
     tag "live"
     update_site false
   end
@@ -426,7 +427,7 @@ action :create do
   mediawiki_extension "SimpleMap" do
     site new_resource.site
     template "mw-ext-SimpleMap.inc.php.erb"
-    repository "git://github.com/Firefishy/SimpleMap.git"
+    repository "https://github.com/Firefishy/SimpleMap.git"
     tag "live"
     update_site false
   end
@@ -434,7 +435,7 @@ action :create do
   mediawiki_extension "SlippyMap" do
     site new_resource.site
     template "mw-ext-SlippyMap.inc.php.erb"
-    repository "git://github.com/Firefishy/SlippyMap.git"
+    repository "https://github.com/Firefishy/SlippyMap.git"
     tag "live"
     update_site false
   end

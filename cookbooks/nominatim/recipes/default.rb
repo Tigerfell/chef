@@ -17,6 +17,8 @@
 # limitations under the License.
 #
 
+include_recipe "munin"
+
 basedir = data_bag_item("accounts", "nominatim")["home"]
 email_errors = data_bag_item("accounts", "lonvia")["email"]
 
@@ -48,6 +50,17 @@ file "#{node[:nominatim][:logdir]}/update.log" do
   mode 0o664
 end
 
+# exception granted for a limited time so that they can set up their own server
+firewall_rule "increase-limits-gnome-proxy" do
+  action :accept
+  family "inet"
+  source "net:8.43.85.23"
+  dest "fw"
+  proto "tcp:syn"
+  dest_ports "https"
+  rate_limit "s:10/sec:30"
+end
+
 ## Postgresql
 
 include_recipe "postgresql"
@@ -55,7 +68,6 @@ include_recipe "postgresql"
 postgresql_version = node[:nominatim][:dbcluster].split("/").first
 postgis_version = node[:nominatim][:postgis]
 
-package "postgis"
 package "postgresql-#{postgresql_version}-postgis-#{postgis_version}"
 
 node[:nominatim][:dbadmins].each do |user|
@@ -151,7 +163,13 @@ package %w[
   libpq-dev
   libgeos++-dev
   libproj-dev
+  python3-pyosmium
   pyosmium
+  python3-psycopg2
+  php
+  php-fpm
+  php-pgsql
+  php-intl
 ]
 
 source_directory = "#{basedir}/nominatim"
@@ -222,8 +240,7 @@ template "/etc/logrotate.d/nominatim" do
 end
 
 external_data = [
-  "wikipedia_article.sql.bin",
-  "wikipedia_redirect.sql.bin",
+  "wikimedia-importance.sql.gz",
   "gb_postcode_data.sql.gz"
 ]
 
@@ -289,40 +306,20 @@ end
 
 ## webserver frontend
 
-template "#{build_directory}/settings/ip_blocks.conf" do
-  action :create_if_missing
-  source "ipblocks.erb"
+directory "#{basedir}/etc" do
   owner "nominatim"
-  group "nominatim"
-  mode 0o664
+  group "adm"
+  mode 0o775
 end
 
-file "#{build_directory}/settings/apache_blocks.conf" do
-  action :create_if_missing
-  owner "nominatim"
-  group "nominatim"
-  mode 0o664
+%w[user_agent referer email].each do |name|
+  file "#{basedir}/etc/nginx_blocked_#{name}.conf" do
+    action :create_if_missing
+    owner "nominatim"
+    group "adm"
+    mode 0o664
+  end
 end
-
-file "#{build_directory}/settings/ip_blocks.map" do
-  action :create_if_missing
-  owner "nominatim"
-  group "nominatim"
-  mode 0o664
-end
-
-include_recipe "apache"
-
-package "php"
-package "php-fpm"
-package "php-pgsql"
-package "php-intl"
-
-apache_module "rewrite"
-apache_module "proxy"
-apache_module "proxy_fcgi"
-apache_module "proxy_http"
-apache_module "headers"
 
 service "php7.2-fpm" do
   action [:enable, :start]
@@ -340,35 +337,41 @@ node[:nominatim][:fpm_pools].each do |name, data|
   end
 end
 
-ssl_certificate "nominatim.openstreetmap.org" do
-  domains ["nominatim.openstreetmap.org",
+ssl_certificate node[:fqdn] do
+  domains [node[:fqdn],
+           "nominatim.openstreetmap.org",
            "nominatim.osm.org",
            "nominatim.openstreetmap.com",
            "nominatim.openstreetmap.net",
            "nominatim.openstreetmaps.org",
            "nominatim.openmaps.org"]
-  notifies :reload, "service[apache2]"
+  notifies :reload, "service[nginx]"
 end
 
-apache_site "nominatim.openstreetmap.org" do
-  template "apache.erb"
+package "apache2" do
+  action :remove
+end
+
+include_recipe "nginx"
+
+nginx_site "default" do
+  action [:delete]
+end
+
+nginx_site "nominatim" do
+  template "nginx.erb"
   directory build_directory
-  variables :pools => node[:nominatim][:fpm_pools]
-  only_if { node[:nominatim][:state] != "off" }
+  variables :pools => node[:nominatim][:fpm_pools],
+            :frontends => search(:node, "recipes:web\\:\\:frontend"),
+            :confdir => "#{basedir}/etc"
 end
 
-apache_site "default" do
-  action [:disable]
-end
-
-template "/etc/logrotate.d/apache2" do
-  source "logrotate.apache.erb"
+template "/etc/logrotate.d/nginx" do
+  source "logrotate.nginx.erb"
   owner "root"
   group "root"
   mode 0o644
 end
-
-include_recipe "fail2ban"
 
 munin_plugin_conf "nominatim" do
   template "munin.erb"
@@ -388,12 +391,17 @@ munin_plugin "nominatim_requests" do
   target "#{source_directory}/munin/nominatim_requests_querylog"
 end
 
-munin_plugin "nominatim_throttled_ips" do
-  target "#{source_directory}/munin/nominatim_throttled_ips"
-end
-
 directory "#{basedir}/status" do
   owner "nominatim"
   group "postgres"
   mode 0o775
+end
+
+include_recipe "fail2ban"
+
+fail2ban_jail "nominatim_limit_req" do
+  filter "nginx-limit-req"
+  logpath "#{node[:nominatim][:logdir]}/nominatim.openstreetmap.org-error.log"
+  ports [80, 443]
+  maxretry 5
 end

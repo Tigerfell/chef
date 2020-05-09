@@ -21,8 +21,11 @@ include_recipe "git"
 
 db_passwords = data_bag_item("db", "passwords")
 
-package "python-psycopg2"
-package "python-lxml"
+package %w[
+  pbzip2
+  python-psycopg2
+  python-lxml
+]
 
 directory "/opt/planet-notes-dump" do
   owner "root"
@@ -32,7 +35,8 @@ end
 
 git "/opt/planet-notes-dump" do
   action :sync
-  repository "git://github.com/openstreetmap/planet-notes-dump.git"
+  repository "https://github.com/openstreetmap/planet-notes-dump.git"
+  depth 1
   user "root"
   group "root"
 end

@@ -2,16 +2,6 @@ name "otrs"
 description "Role applied to all OTRS servers"
 
 default_attributes(
-  :accounts => {
-    :users => {
-      :otrs => { :status => :role }
-    },
-    :groups => {
-      :"www-data" => {
-        :members => [:otrs]
-      }
-    }
-  },
   :exim => {
     :local_domains => ["otrs.openstreetmap.org"],
     :routes => {
@@ -42,6 +32,60 @@ default_attributes(
         :group => "www-data",
         :home_directory => "/opt/otrs"
       },
+      :otrs_membership_osmf_talk_owner => {
+        :comment => "osmf-talk-owner@otrs.openstreetmap.org",
+        :domains => ["otrs.openstreetmap.org"],
+        :local_parts => ["osmf-talk-owner"],
+        :command => "/opt/otrs/bin/otrs.Console.pl Maint::PostMaster::Read --target-queue 'Membership Working Group::osmf-talk'",
+        :user => "otrs",
+        :group => "www-data",
+        :home_directory => "/opt/otrs"
+      },
+      :otrs_legal => {
+        :comment => "legal@otrs.openstreetmap.org",
+        :domains => ["otrs.openstreetmap.org"],
+        :local_parts => ["legal"],
+        :command => "/opt/otrs/bin/otrs.Console.pl Maint::PostMaster::Read --target-queue 'Licensing Working Group'",
+        :user => "otrs",
+        :group => "www-data",
+        :home_directory => "/opt/otrs"
+      },
+      :otrs_legal_privacy => {
+        :comment => "legal-privacy@otrs.openstreetmap.org",
+        :domains => ["otrs.openstreetmap.org"],
+        :local_parts => ["legal-privacy"],
+        :command => "/opt/otrs/bin/otrs.Console.pl Maint::PostMaster::Read --target-queue 'Licensing Working Group::Privacy'",
+        :user => "otrs",
+        :group => "www-data",
+        :home_directory => "/opt/otrs"
+      },
+      :otrs_legal_questions => {
+        :comment => "legal-questions@otrs.openstreetmap.org",
+        :domains => ["otrs.openstreetmap.org"],
+        :local_parts => ["legal-questions"],
+        :command => "/opt/otrs/bin/otrs.Console.pl Maint::PostMaster::Read --target-queue 'Licensing Working Group::Legal Questions'",
+        :user => "otrs",
+        :group => "www-data",
+        :home_directory => "/opt/otrs"
+      },
+      :otrs_legal_trademarks => {
+        :comment => "legal-trademarks@otrs.openstreetmap.org",
+        :domains => ["otrs.openstreetmap.org"],
+        :local_parts => ["legal-trademarks"],
+        :command => "/opt/otrs/bin/otrs.Console.pl Maint::PostMaster::Read --target-queue 'Licensing Working Group::Trademarks'",
+        :user => "otrs",
+        :group => "www-data",
+        :home_directory => "/opt/otrs"
+      },
+      :otrs_sotm_program => {
+        :comment => "sotm-program@otrs.openstreetmap.org",
+        :domains => ["otrs.openstreetmap.org"],
+        :local_parts => ["sotm-program"],
+        :command => "/opt/otrs/bin/otrs.Console.pl Maint::PostMaster::Read --target-queue 'State of the Map:Program'",
+        :user => "otrs",
+        :group => "www-data",
+        :home_directory => "/opt/otrs"
+      },
       :otrs_support => {
         :comment => "support@otrs.openstreetmap.org",
         :domains => ["otrs.openstreetmap.org"],
@@ -55,14 +99,7 @@ default_attributes(
   },
   :otrs => {
     :site => "otrs.openstreetmap.org",
-    :site_aliases => ["otrs.osm.org"],
-    :database_cluster => "10/main",
-    :database_name => "otrs",
-    :database_user => "otrs",
-    :database_password => "otrs"
-  },
-  :postgresql => {
-    :versions => ["10"]
+    :site_aliases => ["otrs.osm.org"]
   }
 )
 

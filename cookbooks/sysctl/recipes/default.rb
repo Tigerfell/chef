@@ -17,42 +17,36 @@
 # limitations under the License.
 #
 
-if node[:virtualization][:role] == "guest" &&
-   node[:virtualization][:system] == "lxd"
-  file "/etc/sysctl.d/60-chef.conf" do
-    action :delete
-  end
-else
-  package "procps"
+file "/etc/sysctl.d/60-chef.conf" do
+  action :delete
+end
 
-  directory "/etc/sysctl.d" do
-    owner "root"
-    group "root"
-    mode 0o755
-  end
+if node[:virtualization][:role] != "guest" ||
+   (node[:virtualization][:system] != "lxc" &&
+    node[:virtualization][:system] != "lxd" &&
+    node[:virtualization][:system] != "openvz")
+  keys = []
 
-  execute "sysctl" do
-    action :nothing
-    command "/sbin/sysctl -p /etc/sysctl.d/60-chef.conf"
-  end
+  Dir.new("/etc/sysctl.d").each_entry do |file|
+    next unless file =~ /^99-chef-(.*)\.conf$/
 
-  template "/etc/sysctl.d/60-chef.conf" do
-    source "chef.conf.erb"
-    owner "root"
-    group "root"
-    mode 0o644
-    notifies :run, "execute[sysctl]"
+    keys.push(Regexp.last_match(1))
   end
 
   node[:sysctl].each_value do |group|
     group[:parameters].each do |key, value|
-      sysctl_file = "/proc/sys/#{key.tr('.', '/')}"
-
-      file sysctl_file do
-        content "#{value}\n"
-        atomic_update false
-        ignore_failure true
+      sysctl key do
+        value value
+        # comment group[:comment]
       end
+
+      keys.delete(key)
+    end
+  end
+
+  keys.each do |key|
+    sysctl key do
+      action :remove
     end
   end
 end

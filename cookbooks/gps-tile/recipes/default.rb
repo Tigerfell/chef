@@ -17,7 +17,10 @@
 # limitations under the License.
 #
 
+include_recipe "accounts"
 include_recipe "apache"
+include_recipe "git"
+include_recipe "memcached"
 
 package %w[
   make
@@ -40,15 +43,16 @@ end
 
 git "/srv/gps-tile.openstreetmap.org/import" do
   action :sync
-  repository "git://github.com/ericfischer/gpx-import.git"
+  repository "https://github.com/ericfischer/gpx-import.git"
   revision "live"
+  depth 1
   user "gpstile"
   group "gpstile"
 end
 
 execute "/srv/gps-tile.openstreetmap.org/import/src/Makefile" do
   action :nothing
-  command "make"
+  command "make DB=none LDFLAGS=-lm"
   cwd "/srv/gps-tile.openstreetmap.org/import/src"
   user "gpstile"
   group "gpstile"
@@ -57,8 +61,9 @@ end
 
 git "/srv/gps-tile.openstreetmap.org/datamaps" do
   action :sync
-  repository "git://github.com/ericfischer/datamaps.git"
+  repository "https://github.com/ericfischer/datamaps.git"
   revision "live"
+  depth 1
   user "gpstile"
   group "gpstile"
 end
@@ -74,8 +79,9 @@ end
 
 git "/srv/gps-tile.openstreetmap.org/updater" do
   action :sync
-  repository "git://github.com/ericfischer/gpx-updater.git"
+  repository "https://github.com/ericfischer/gpx-updater.git"
   revision "live"
+  depth 1
   user "gpstile"
   group "gpstile"
 end

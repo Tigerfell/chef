@@ -35,21 +35,19 @@ default_attributes(
       "rock /store/squid/rock-32768 22800 swap-timeout=200 slot-size=32768 min-size=16285 max-size=262144"
     ]
   },
+  :nginx => {
+    :cache => {
+      :proxy => {
+        :max_size => "16384M"
+      }
+    }
+  },
   :tilecache => {
-    :tile_parent => "london.render.openstreetmap.org",
-    :tile_siblings => [
-      "saphira.openstreetmap.org",
-      "trogdor.openstreetmap.org",
-      "katie.openstreetmap.org",
-      "konqi.openstreetmap.org",
-      "ridgeback.openstreetmap.org",
-      "gorynych.openstreetmap.org"
-    ]
+    :tile_parent => "london.render.openstreetmap.org"
   }
 )
 
 run_list(
   "role[jump]",
-  "role[geodns]",
   "role[tilecache]"
 )

@@ -14,18 +14,13 @@ default_attributes(
     :nameservers => [
       "1.1.1.1",
       "8.8.8.8"
-    ],
-    :roles => {
-      :external => {
-        :zone => "osm"
-      }
-    }
+    ]
   }
 )
 
 override_attributes(
   :ntp => {
-    :servers => ["0.us.pool.ntp.org", "1.us.pool.ntp.org", "america.pool.ntp.org"]
+    :servers => ["0.us.pool.ntp.org", "1.us.pool.ntp.org", "north-america.pool.ntp.org"]
   }
 )
 

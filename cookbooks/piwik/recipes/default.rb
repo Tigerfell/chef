@@ -18,20 +18,22 @@
 #
 
 include_recipe "apache"
+include_recipe "geoipupdate"
 include_recipe "mysql"
 
 passwords = data_bag_item("piwik", "passwords")
 
-package "php"
-package "php-cli"
-package "php-curl"
-package "php-mbstring"
-package "php-mysql"
-package "php-gd"
-package "php-xml"
-package "php-apcu"
-
-package "geoipupdate"
+package %w[
+  php
+  php-cli
+  php-curl
+  php-mbstring
+  php-mysql
+  php-gd
+  php-xml
+  php-apcu
+  unzip
+]
 
 apache_module "expires"
 apache_module "php7.2"
@@ -47,7 +49,7 @@ end
 
 remote_file "#{Chef::Config[:file_cache_path]}/piwik-#{version}.zip" do
   source "https://builds.matomo.org/piwik-#{version}.zip"
-  not_if { File.exist?("/opt/piwik-#{version}/piwik") }
+  not_if { ::File.exist?("/opt/piwik-#{version}/piwik") }
 end
 
 execute "unzip-piwik-#{version}" do
@@ -55,7 +57,7 @@ execute "unzip-piwik-#{version}" do
   cwd "/opt/piwik-#{version}"
   user "root"
   group "root"
-  not_if { File.exist?("/opt/piwik-#{version}/piwik") }
+  not_if { ::File.exist?("/opt/piwik-#{version}/piwik") }
 end
 
 execute "/opt/piwik-#{version}/piwik/piwik.js" do
@@ -63,7 +65,7 @@ execute "/opt/piwik-#{version}/piwik/piwik.js" do
   cwd "/opt/piwik-#{version}"
   user "root"
   group "root"
-  not_if { File.exist?("/opt/piwik-#{version}/piwik/piwik.js.gz") }
+  not_if { ::File.exist?("/opt/piwik-#{version}/piwik/piwik.js.gz") }
 end
 
 directory "/opt/piwik-#{version}/piwik/config" do
@@ -89,15 +91,15 @@ directory "/opt/piwik-#{version}/piwik/tmp" do
 end
 
 link "/opt/piwik-#{version}/piwik/misc/GeoLite2-ASN.mmdb" do
-  to "/var/lib/GeoIP/GeoLite2-ASN.mmdb"
+  to "/usr/share/GeoIP/GeoLite2-ASN.mmdb"
 end
 
 link "/opt/piwik-#{version}/piwik/misc/GeoLite2-City.mmdb" do
-  to "/var/lib/GeoIP/GeoLite2-City.mmdb"
+  to "/usr/share/GeoIP/GeoLite2-City.mmdb"
 end
 
 link "/opt/piwik-#{version}/piwik/misc/GeoLite2-Country.mmdb" do
-  to "/var/lib/GeoIP/GeoLite2-Country.mmdb"
+  to "/usr/share/GeoIP/GeoLite2-Country.mmdb"
 end
 
 link "/srv/piwik.openstreetmap.org" do

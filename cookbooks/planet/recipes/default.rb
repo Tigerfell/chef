@@ -17,13 +17,14 @@
 # limitations under the License.
 #
 
+include_recipe "accounts"
 include_recipe "apache"
+include_recipe "munin"
 
-package "perl"
-package "pbzip2"
-package "osmosis"
-
-package "php-cli"
+package %w[
+  perl
+  php-cli
+]
 
 file "/etc/cron.d/planet" do
   action :delete
@@ -97,6 +98,7 @@ end
 apache_module "cgid"
 apache_module "rewrite"
 apache_module "proxy_http"
+apache_module "ratelimit"
 
 ssl_certificate "planet.openstreetmap.org" do
   domains ["planet.openstreetmap.org", "planet.osm.org"]

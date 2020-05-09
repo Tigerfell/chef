@@ -19,16 +19,18 @@
 
 require "ipaddr"
 
-include_recipe "ssl"
-include_recipe "squid"
-include_recipe "nginx"
 include_recipe "fail2ban"
+include_recipe "munin"
+include_recipe "nginx"
+include_recipe "squid"
+include_recipe "ssl"
 
 package "apache2" do
   action :remove
 end
 
 package %w[
+  curl
   xz-utils
   openssl
 ]
@@ -52,6 +54,7 @@ tilecaches.each do |cache|
       dest_ports "3128"
       source_ports "1024:"
     end
+
     firewall_rule "accept-squid-icp" do
       action :accept
       family "inet"
@@ -61,6 +64,7 @@ tilecaches.each do |cache|
       dest_ports "3130"
       source_ports "3130"
     end
+
     firewall_rule "accept-squid-icp-reply" do
       action :accept
       family "inet"
@@ -69,6 +73,26 @@ tilecaches.each do |cache|
       proto "udp"
       dest_ports "3130"
       source_ports "3130"
+    end
+
+    firewall_rule "accept-squid-htcp" do
+      action :accept
+      family "inet"
+      source "net:#{address}"
+      dest "fw"
+      proto "udp"
+      dest_ports "4827"
+      source_ports "4827"
+    end
+
+    firewall_rule "accept-squid-htcp-reply" do
+      action :accept
+      family "inet"
+      source "fw"
+      dest "net:#{address}"
+      proto "udp"
+      dest_ports "4827"
+      source_ports "4827"
     end
   end
 end
@@ -146,4 +170,46 @@ tilerenders.each do |render|
     conf "munin.ping.erb"
     conf_variables :host => render[:fqdn]
   end
+end
+
+template "/etc/cron.d/tilecache" do
+  source "cron.erb"
+  owner "root"
+  group "root"
+  mode 0o644
+end
+
+directory "/srv/tilecache" do
+  owner "root"
+  group "root"
+  mode 0o755
+end
+
+directory "/srv/tilecache/data" do
+  owner "www-data"
+  group "www-data"
+  mode 0o755
+end
+
+cookbook_file "/srv/tilecache/tilecache-curl-time.txt" do
+  source "tilecache-curl-time.txt"
+  owner "root"
+  group "root"
+  mode 0o755
+end
+
+template "/srv/tilecache/tilecache-curl-time" do
+  source "tilecache-curl-time.erb"
+  owner "root"
+  group "root"
+  mode 0o755
+  variables :caches => tilecaches, :renders => tilerenders
+end
+
+file "/srv/tilecache/tilecache-fastest-peers" do
+  action :delete
+end
+
+ohai_plugin "tilecache" do
+  template "ohai.rb.erb"
 end

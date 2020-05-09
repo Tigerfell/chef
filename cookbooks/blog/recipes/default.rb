@@ -43,7 +43,7 @@ end
 wordpress_theme "blog.openstreetmap.org-osmblog-wp-theme" do
   theme "osmblog-wp-theme"
   site "blog.openstreetmap.org"
-  repository "git://github.com/harry-wood/osmblog-wp-theme.git"
+  repository "https://github.com/harry-wood/osmblog-wp-theme.git"
 end
 
 wordpress_plugin "blog.openstreetmap.org-google-analytics-for-wordpress" do
@@ -65,6 +65,7 @@ wordpress_plugin "blog.openstreetmap.org-sitepress-multilingual-cms" do
   plugin "sitepress-multilingual-cms"
   site "blog.openstreetmap.org"
   repository "https://git.openstreetmap.org/private/sitepress-multilingual-cms.git"
+  not_if { ENV["TEST_KITCHEN"] }
 end
 
 wordpress_plugin "blog.openstreetmap.org-wordpress-importer" do
@@ -74,7 +75,7 @@ end
 
 git "/srv/blog.openstreetmap.org/casts" do
   action :sync
-  repository "git://github.com/openstreetmap/opengeodata-podcasts.git"
+  repository "https://github.com/openstreetmap/opengeodata-podcasts.git"
   depth 1
   user "wordpress"
   group "wordpress"
@@ -82,7 +83,7 @@ end
 
 git "/srv/blog.openstreetmap.org/images" do
   action :sync
-  repository "git://github.com/openstreetmap/opengeodata-images.git"
+  repository "https://github.com/openstreetmap/opengeodata-images.git"
   depth 1
   user "wordpress"
   group "wordpress"
@@ -90,7 +91,7 @@ end
 
 git "/srv/blog.openstreetmap.org/static" do
   action :sync
-  repository "git://github.com/openstreetmap/opengeodata-static.git"
+  repository "https://github.com/openstreetmap/opengeodata-static.git"
   depth 1
   user "wordpress"
   group "wordpress"

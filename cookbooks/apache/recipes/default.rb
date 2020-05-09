@@ -17,6 +17,7 @@
 # limitations under the License.
 #
 
+include_recipe "munin"
 include_recipe "ssl"
 
 package %w[
@@ -54,6 +55,8 @@ end
 
 service "apache2" do
   action [:enable, :start]
+  retries 2
+  retry_delay 10
   supports :status => true, :restart => true, :reload => true
 end
 

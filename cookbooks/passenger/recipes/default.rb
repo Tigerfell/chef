@@ -18,6 +18,8 @@
 #
 
 include_recipe "apache"
+include_recipe "apt"
+include_recipe "munin"
 
 package "ruby#{node[:passenger][:ruby_version]}"
 package "ruby#{node[:passenger][:ruby_version]}-dev"

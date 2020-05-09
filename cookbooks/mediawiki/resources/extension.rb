@@ -19,7 +19,7 @@
 
 default_action :create
 
-property :extension, :kind_of => String, :name_attribute => true
+property :extension, :kind_of => String, :name_property => true
 property :site, :kind_of => String, :required => true
 property :source, :kind_of => String
 property :template, :kind_of => String
@@ -57,10 +57,11 @@ action :create do
       action :sync
       repository extension_repository
       reference extension_reference
+      depth 1
       enable_submodules true
       user node[:mediawiki][:user]
       group node[:mediawiki][:group]
-      ignore_failure extension_repository.start_with?("git://github.com/wikimedia/mediawiki-extensions")
+      ignore_failure extension_repository.start_with?("https://github.com/wikimedia/mediawiki-extensions")
     end
   end
 
@@ -122,7 +123,7 @@ action_class do
   end
 
   def default_repository
-    "git://github.com/wikimedia/mediawiki-extensions-#{new_resource.extension}.git"
+    "https://github.com/wikimedia/mediawiki-extensions-#{new_resource.extension}.git"
   end
 end
 

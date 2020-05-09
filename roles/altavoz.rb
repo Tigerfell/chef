@@ -8,18 +8,13 @@ default_attributes(
     :nameservers => [
       "200.91.44.10",
       "200.91.41.10"
-    ],
-    :roles => {
-      :external => {
-        :zone => "av"
-      }
-    }
+    ]
   }
 )
 
 override_attributes(
   :ntp => {
-    :servers => ["0.cl.pool.ntp.org", "1.cl.pool.ntp.org", "america.pool.ntp.org"]
+    :servers => ["0.cl.pool.ntp.org", "1.cl.pool.ntp.org", "south-america.pool.ntp.org"]
   }
 )
 

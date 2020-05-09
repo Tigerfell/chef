@@ -23,14 +23,14 @@ resource_name :rails_port
 
 default_action :create
 
-property :site, String, :name_attribute => true
+property :site, String, :name_property => true
 property :ruby, String, :default => "2.3"
 property :directory, String
 property :user, String
 property :group, String
 property :repository, String, :default => "https://git.openstreetmap.org/public/rails.git"
 property :revision, String, :default => "live"
-property :run_migrations, [TrueClass, FalseClass], :default => false
+property :run_migrations, [true, false], :default => false
 property :email_from, String, :default => "OpenStreetMap <support@openstreetmap.org>"
 property :status, String, :default => "online"
 property :database_host, String
@@ -63,10 +63,10 @@ property :wikipedia_auth_id, String
 property :wikipedia_auth_secret, String
 property :thunderforest_key, String
 property :totp_key, String
-property :csp_enforce, [TrueClass, FalseClass], :default => false
+property :csp_enforce, [true, false], :default => false
 property :csp_report_url, String
 property :piwik_configuration, Hash
-property :trace_use_job_queue, [TrueClass, FalseClass], :default => false
+property :trace_use_job_queue, [true, false], :default => false
 property :diary_feed_delay, Integer
 property :storage_configuration, Hash, :default => {}
 property :storage_service, String, :default => "local"
@@ -79,6 +79,7 @@ action :create do
     imagemagick
     nodejs
     geoip-database
+    tzdata
   ]
 
   package %w[
@@ -128,6 +129,7 @@ action :create do
     action :sync
     repository new_resource.repository
     revision new_resource.revision
+    depth 1
     user new_resource.user
     group new_resource.group
     notifies :run, "execute[#{rails_directory}/Gemfile]"
@@ -182,6 +184,7 @@ action :create do
     line.gsub!(/^( *)#geonames_username:.*$/, "\\1geonames_username: \"openstreetmap\"")
 
     line.gsub!(/^( *)#geoip_database:.*$/, "\\1geoip_database: \"/usr/share/GeoIP/GeoIPv6.dat\"")
+    line.gsub!(/^( *)#maxmind_database:.*$/, "\\1maxmind_database: \"/usr/share/GeoIP/GeoLite2-Country.mmdb\"")
 
     if new_resource.gpx_dir
       line.gsub!(/^( *)gpx_trace_dir:.*$/, "\\1gpx_trace_dir: \"#{new_resource.gpx_dir}/traces\"")
@@ -326,7 +329,8 @@ action :create do
     "support_email" => "support@openstreetmap.org",
     "email_return_path" => "bounces@openstreetmap.org",
     "geonames_username" => "openstreetmap",
-    "geoip_database" => "/usr/share/GeoIP/GeoIPv6.dat"
+    "geoip_database" => "/usr/share/GeoIP/GeoIPv6.dat",
+    "maxmind_database" => "/usr/share/GeoIP/GeoLite2-Country.mmdb"
   )
 
   if new_resource.memcache_servers

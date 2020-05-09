@@ -17,22 +17,29 @@
 # limitations under the License.
 #
 
+include_recipe "geoipupdate"
+
 package %w[
-  geoipupdate
   gdnsd
 ]
-
-execute "geoipdate" do
-  command "geoipupdate"
-  user "root"
-  group "root"
-  not_if { ::File.exist?("/var/lib/GeoIP/GeoLite2-Country.mmdb") }
-end
 
 directory "/etc/gdnsd/config.d" do
   owner "nobody"
   group "nogroup"
   mode 0o755
+end
+
+%w[tile nominatim].each do |zone|
+  %w[map resource weighted].each do |type|
+    template "/etc/gdnsd/config.d/#{zone}.#{type}" do
+      action :create_if_missing
+      source "zone.#{type}.erb"
+      owner "nobody"
+      group "nogroup"
+      mode 0o644
+      variables :zone => zone
+    end
+  end
 end
 
 template "/etc/gdnsd/config" do

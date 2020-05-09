@@ -14,23 +14,22 @@ default_attributes(
   },
   :apache => {
     :mpm => "event",
-    :timeout => 60,
+    :timeout => 30,
     :keepalive => false,
     :reqtimeout => true,
     :event => {
-      :server_limit => 32,
-      :max_request_workers => 1600,
+      :server_limit => 100,
+      :max_request_workers => 2400,
       :threads_per_child => 50,
       :min_spare_threads => 125,
-      :max_spare_threads => 925
+      :max_spare_threads => 925,
+      :async_request_worker_factor => 4,
+      :listen_cores_buckets_ratio => 6
     }
-  },
-  :apt => {
-    :sources => ["postgresql"]
   },
   :networking => {
     :firewall => {
-      :http_rate_limit => "s:7/sec:15"
+      :http_rate_limit => "s:2/sec:15"
     }
   },
   :postgresql => {

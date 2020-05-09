@@ -19,7 +19,7 @@
 
 default_action :create
 
-property :plugin, :kind_of => String, :name_attribute => true
+property :plugin, :kind_of => String, :name_property => true
 property :site, :kind_of => String, :required => true
 property :source, :kind_of => String
 property :version, :kind_of => String
@@ -47,6 +47,7 @@ action :create do
         action :sync
         repository plugin_repository
         revision new_resource.revision
+        depth 1
         user node[:wordpress][:user]
         group node[:wordpress][:group]
       end

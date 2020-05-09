@@ -10,7 +10,7 @@ def nice_size(file):
     MB = 1024. * KB
     GB = 1024. * MB
     TB = 1024. * GB
-    
+
     if size < KB:
         size, suffix = size, ''
     elif size < MB:
@@ -21,7 +21,7 @@ def nice_size(file):
         size, suffix = size/GB, 'GB'
     else:
         size, suffix = size/TB, 'TB'
-    
+
     if size < 10:
         return '%.1f %s' % (round(size,1), suffix)
     else:
@@ -59,17 +59,17 @@ print """
 <html>
  <head>
   <title>Index of /</title>
-  <link href="style.css" rel="stylesheet" type="text/css">
+  <link href="https://planet.openstreetmap.org/style.css" rel="stylesheet" type="text/css">
  </head>
  <body>
-<img id="logo" src="logo.png" alt="OSM logo" width="128" height="128">
+<img id="logo" src="https://planet.openstreetmap.org/logo.png" alt="OSM logo" width="128" height="128">
 <h1>Planet OSM</h1>
 
 <p>
 The files found here are regularly-updated, complete copies of the OpenStreetMap.org
 database, and those published before the 12 September 2012 are distributed under a Creative Commons Attribution-ShareAlike 2.0 license, those published after are  Open Data Commons Open Database License 1.0 licensed. For more information, <a href="https://wiki.openstreetmap.org/wiki/Planet.osm">see the project wiki</a>.
 </p>
-
+<p><div class="alert"><strong>WARNING</strong> Download speeds are currently restricted to 2048 KB/s due to limited available capacity on our Internet connection. <a href="https://wiki.openstreetmap.org/wiki/Planet.osm#Planet.osm_mirrors">Please use a mirror if possible.</a></div></p>
 <table id="about">
   <tr>
     <th>
@@ -101,8 +101,8 @@ database, and those published before the 12 September 2012 are distributed under
     </td>
     <td>
         <p>
-        You are granted permission to use OpenStreetMap data by 
-        <a href="https://osm.org/copyright">the OpenStreetMap License</a>, which also describes 
+        You are granted permission to use OpenStreetMap data by
+        <a href="https://osm.org/copyright">the OpenStreetMap License</a>, which also describes
         your obligations.
         </p>
         <p>

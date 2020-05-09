@@ -17,8 +17,10 @@
 # limitations under the License.
 #
 
+include_recipe "accounts"
 include_recipe "apache"
 include_recipe "git"
+include_recipe "munin"
 include_recipe "nodejs"
 include_recipe "postgresql"
 include_recipe "python"
@@ -360,7 +362,6 @@ end
 postgresql_version = node[:tile][:database][:cluster].split("/").first
 postgis_version = node[:tile][:database][:postgis]
 
-package "postgis"
 package "postgresql-#{postgresql_version}-postgis-#{postgis_version}"
 
 postgresql_user "jburgess" do
@@ -394,6 +395,7 @@ end
 postgresql_extension "hstore" do
   cluster node[:tile][:database][:cluster]
   database "gis"
+  only_if { node[:tile][:database][:hstore] }
 end
 
 %w[geography_columns planet_osm_nodes planet_osm_rels planet_osm_ways raster_columns raster_overviews spatial_ref_sys].each do |table|
@@ -419,7 +421,14 @@ postgresql_munin "gis" do
   database "gis"
 end
 
-file node[:tile][:node_file] do
+directory File.dirname(node[:tile][:database][:node_file]) do
+  owner "root"
+  group "root"
+  mode 0o755
+  recursive true
+end
+
+file node[:tile][:database][:node_file] do
   owner "tile"
   group "www-data"
   mode 0o660
@@ -436,7 +445,7 @@ package %w[
   ruby
   osmium-tool
   pyosmium
-  python-pyproj
+  python3-pyproj
 ]
 
 remote_directory "/usr/local/bin" do
@@ -473,6 +482,7 @@ template "/usr/local/bin/replicate" do
   owner "root"
   group "root"
   mode 0o755
+  variables :postgresql_version => postgresql_version.to_f
 end
 
 systemd_service "expire-tiles" do

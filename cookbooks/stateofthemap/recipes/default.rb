@@ -25,6 +25,7 @@ git "/srv/stateofthemap.org" do
   action :sync
   repository "https://git.openstreetmap.org/public/stateofthemap.git"
   revision "chooser"
+  depth 1
   user "root"
   group "root"
 end
@@ -105,6 +106,7 @@ git "/srv/2009.stateofthemap.org" do
   action :sync
   repository "https://git.openstreetmap.org/public/stateofthemap.git"
   revision "resources-2009"
+  depth 1
   user "wordpress"
   group "wordpress"
 end
@@ -142,6 +144,7 @@ git "/srv/2010.stateofthemap.org" do
   action :sync
   repository "https://git.openstreetmap.org/public/stateofthemap.git"
   revision "resources-2010"
+  depth 1
   user "wordpress"
   group "wordpress"
 end
@@ -166,6 +169,7 @@ wordpress_plugin "2010.stateofthemap.org-sitepress-multilingual-cms" do
   plugin "sitepress-multilingual-cms"
   site "2010.stateofthemap.org"
   repository "https://git.openstreetmap.org/private/sitepress-multilingual-cms.git"
+  not_if { ENV["TEST_KITCHEN"] }
 end
 
 wordpress_plugin "2010.stateofthemap.org-wp-sticky" do
@@ -183,6 +187,7 @@ git "/srv/2011.stateofthemap.org" do
   action :sync
   repository "https://git.openstreetmap.org/public/stateofthemap.git"
   revision "resources-2011"
+  depth 1
   user "wordpress"
   group "wordpress"
 end
@@ -207,6 +212,7 @@ wordpress_plugin "2011.stateofthemap.org-sitepress-multilingual-cms" do
   plugin "sitepress-multilingual-cms"
   site "2011.stateofthemap.org"
   repository "https://git.openstreetmap.org/private/sitepress-multilingual-cms.git"
+  not_if { ENV["TEST_KITCHEN"] }
 end
 
 wordpress_plugin "2011.stateofthemap.org-wp-sticky" do
@@ -224,6 +230,7 @@ git "/srv/2012.stateofthemap.org" do
   action :sync
   repository "https://git.openstreetmap.org/public/stateofthemap.git"
   revision "resources-2012"
+  depth 1
   user "wordpress"
   group "wordpress"
 end
@@ -253,6 +260,7 @@ wordpress_plugin "2012.stateofthemap.org-sitepress-multilingual-cms" do
   plugin "sitepress-multilingual-cms"
   site "2012.stateofthemap.org"
   repository "https://git.openstreetmap.org/private/sitepress-multilingual-cms.git"
+  not_if { ENV["TEST_KITCHEN"] }
 end
 
 wordpress_plugin "2012.stateofthemap.org-wp-sticky" do
@@ -265,12 +273,13 @@ end
     action :sync
     repository "https://git.openstreetmap.org/public/stateofthemap.git"
     revision "site-#{year}"
+    depth 1
     user "root"
     group "root"
   end
 
   ssl_certificate "#{year}.stateofthemap.org" do
-    domains ["#{year}.stateofthemap.org", "#{year}.stateofthemap.com"]
+    domains ["#{year}.stateofthemap.org", "#{year}.stateofthemap.com", "#{year}.sotm.org"]
     notifies :reload, "service[apache2]"
   end
 
@@ -284,21 +293,30 @@ end
 package %w[
   ruby
   ruby-dev
+  libssl-dev
   zlib1g-dev
+  pkg-config
 ]
 
-gem_package "jekyll"
+apache_module "expires"
+apache_module "rewrite"
+
 gem_package "bundler" do
   version "1.17.3"
+end
+
+gem_package "bundler" do
+  version "2.1.4"
 end
 
 %w[2016 2017 2018 2019 2020].each do |year|
   git "/srv/#{year}.stateofthemap.org" do
     action :sync
-    repository "git://github.com/openstreetmap/stateofthemap-#{year}.git"
+    repository "https://github.com/openstreetmap/stateofthemap-#{year}.git"
+    depth 1
     user "root"
     group "root"
-    notifies :run, "execute[/srv/#{year}.stateofthemap.org]"
+    notifies :run, "execute[/srv/#{year}.stateofthemap.org/Gemfile]"
   end
 
   directory "/srv/#{year}.stateofthemap.org/_site" do
@@ -307,16 +325,34 @@ end
     group "nogroup"
   end
 
+  # Workaround https://github.com/jekyll/jekyll/issues/7804
+  # by creating a .jekyll-cache folder
+  directory "/srv/#{year}.stateofthemap.org/.jekyll-cache" do
+    mode 0o755
+    owner "nobody"
+    group "nogroup"
+  end
+
+  execute "/srv/#{year}.stateofthemap.org/Gemfile" do
+    action :nothing
+    command "bundle install --deployment"
+    cwd "/srv/#{year}.stateofthemap.org"
+    user "root"
+    group "root"
+    notifies :run, "execute[/srv/#{year}.stateofthemap.org]"
+    only_if { ::File.exist?("/srv/#{year}.stateofthemap.org/Gemfile") }
+  end
+
   execute "/srv/#{year}.stateofthemap.org" do
     action :nothing
-    command "jekyll build --trace"
+    command "bundle exec jekyll build --trace --baseurl=https://#{year}.stateofthemap.org"
     cwd "/srv/#{year}.stateofthemap.org"
     user "nobody"
     group "nogroup"
   end
 
   ssl_certificate "#{year}.stateofthemap.org" do
-    domains ["#{year}.stateofthemap.org", "#{year}.stateofthemap.com"]
+    domains ["#{year}.stateofthemap.org", "#{year}.stateofthemap.com", "#{year}.sotm.org"]
     notifies :reload, "service[apache2]"
   end
 

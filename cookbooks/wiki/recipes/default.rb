@@ -17,8 +17,6 @@
 # limitations under the License.
 #
 
-# include_recipe "squid"
-
 include_recipe "mediawiki"
 
 passwords = data_bag_item("wiki", "passwords")
@@ -78,7 +76,7 @@ end
 
 mediawiki_extension "OsmWikibase" do
   site "wiki.openstreetmap.org"
-  repository "git://github.com/nyurik/OsmWikibase.git"
+  repository "https://github.com/nyurik/OsmWikibase.git"
   reference "master"
 end
 
