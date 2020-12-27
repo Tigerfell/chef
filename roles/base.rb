@@ -10,9 +10,6 @@ default_attributes(
       :jburgess => { :status => :administrator }
     }
   },
-  :apt => {
-    :sources => ["openstreetmap"]
-  },
   :munin => {
     :plugins => {
       :chrony => {
@@ -23,7 +20,7 @@ default_attributes(
   :networking => {
     :roles => {
       :internal => { :metric => 200, :zone => "loc" },
-      :external => { :metric => 100 }
+      :external => { :metric => 100, :zone => "osm" }
     },
     :search => ["openstreetmap.org"]
   },
@@ -44,9 +41,9 @@ default_attributes(
       :parameters => {
         "net.core.rmem_max" => "16777216",
         "net.core.wmem_max" => "16777216",
-        "net.ipv4.tcp_rmem" => "4096\t87380\t16777216",
-        "net.ipv4.tcp_wmem" => "4096\t65536\t16777216",
-        "net.ipv4.udp_mem" => "3145728\t4194304\t16777216"
+        "net.ipv4.tcp_rmem" => "4096 87380 16777216",
+        "net.ipv4.tcp_wmem" => "4096 65536 16777216",
+        "net.ipv4.udp_mem" => "3145728 4194304 16777216"
       }
     },
     :network_backlog => {
@@ -69,9 +66,10 @@ default_attributes(
       }
     },
     :default_qdisc => {
-      :comment => "Use pfifo_fast as the default queuing discipline",
+      :comment => "Use fq as the default queuing discipline and cubic for congestion control",
       :parameters => {
-        "net.core.default_qdisc" => "pfifo_fast"
+        "net.core.default_qdisc" => "fq",
+        "net.ipv4.tcp_congestion_control" => "cubic"
       }
     },
     :tune_cpu_scheduler => {
@@ -90,7 +88,8 @@ run_list(
   "recipe[chef]",
   "recipe[devices]",
   "recipe[hardware]",
-  "recipe[munin]",
+  "recipe[prometheus]",
+  "recipe[munin::plugins]",
   "recipe[networking]",
   "recipe[exim]",
   "recipe[ntp]",

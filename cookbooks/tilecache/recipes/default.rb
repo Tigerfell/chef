@@ -19,16 +19,18 @@
 
 require "ipaddr"
 
-include_recipe "ssl"
-include_recipe "squid"
-include_recipe "nginx"
 include_recipe "fail2ban"
+include_recipe "munin"
+include_recipe "nginx"
+include_recipe "squid"
+include_recipe "ssl"
 
 package "apache2" do
   action :remove
 end
 
 package %w[
+  curl
   xz-utils
   openssl
 ]
@@ -52,6 +54,7 @@ tilecaches.each do |cache|
       dest_ports "3128"
       source_ports "1024:"
     end
+
     firewall_rule "accept-squid-icp" do
       action :accept
       family "inet"
@@ -61,6 +64,7 @@ tilecaches.each do |cache|
       dest_ports "3130"
       source_ports "3130"
     end
+
     firewall_rule "accept-squid-icp-reply" do
       action :accept
       family "inet"
@@ -69,6 +73,26 @@ tilecaches.each do |cache|
       proto "udp"
       dest_ports "3130"
       source_ports "3130"
+    end
+
+    firewall_rule "accept-squid-htcp" do
+      action :accept
+      family "inet"
+      source "net:#{address}"
+      dest "fw"
+      proto "udp"
+      dest_ports "4827"
+      source_ports "4827"
+    end
+
+    firewall_rule "accept-squid-htcp-reply" do
+      action :accept
+      family "inet"
+      source "fw"
+      dest "net:#{address}"
+      proto "udp"
+      dest_ports "4827"
+      source_ports "4827"
     end
   end
 end
@@ -84,7 +108,7 @@ template "/etc/logrotate.d/squid" do
   source "logrotate.squid.erb"
   owner "root"
   group "root"
-  mode 0o644
+  mode "644"
 end
 
 nginx_site "default" do
@@ -95,15 +119,30 @@ template "/usr/local/bin/nginx_generate_tilecache_qos_map" do
   source "nginx_generate_tilecache_qos_map.erb"
   owner "root"
   group "root"
-  mode 0o750
+  mode "750"
   variables :totp_key => web_passwords["totp_key"]
 end
 
-template "/etc/cron.d/tilecache" do
-  source "cron.erb"
-  owner "root"
-  group "root"
-  mode 0o644
+cron_d "tilecache" do
+  action :delete
+end
+
+cron_d "tilecache-generate-qos-map" do
+  minute "0"
+  user "root"
+  command "/usr/local/bin/nginx_generate_tilecache_qos_map"
+end
+
+cron_d "tilecache-curl-time" do
+  user "www-data"
+  command "/srv/tilecache/tilecache-curl-time"
+end
+
+cron_d "tilecache-curl-time-cleanup" do
+  minute "15"
+  hour "0"
+  user "www-data"
+  command "/srv/tilecache/tilecache-curl-time-cleanup"
 end
 
 execute "execute_nginx_generate_tilecache_qos_map" do
@@ -133,7 +172,11 @@ template "/etc/logrotate.d/nginx" do
   source "logrotate.nginx.erb"
   owner "root"
   group "root"
-  mode 0o644
+  mode "644"
+end
+
+fail2ban_jail "squid" do
+  maxretry 1000
 end
 
 fail2ban_jail "squid" do
@@ -146,4 +189,42 @@ tilerenders.each do |render|
     conf "munin.ping.erb"
     conf_variables :host => render[:fqdn]
   end
+end
+
+directory "/srv/tilecache" do
+  owner "root"
+  group "root"
+  mode "755"
+end
+
+directory "/srv/tilecache/data" do
+  owner "www-data"
+  group "www-data"
+  mode "755"
+end
+
+cookbook_file "/srv/tilecache/tilecache-curl-time.txt" do
+  source "tilecache-curl-time.txt"
+  owner "root"
+  group "root"
+  mode "755"
+end
+
+template "/srv/tilecache/tilecache-curl-time" do
+  source "tilecache-curl-time.erb"
+  owner "root"
+  group "root"
+  mode "755"
+  variables :caches => tilecaches, :renders => tilerenders
+end
+
+template "/srv/tilecache/tilecache-curl-time-cleanup" do
+  source "tilecache-curl-time-cleanup.erb"
+  owner "root"
+  group "root"
+  mode "755"
+end
+
+ohai_plugin "tilecache" do
+  template "ohai.rb.erb"
 end

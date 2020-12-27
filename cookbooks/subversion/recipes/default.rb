@@ -27,10 +27,10 @@ remote_directory "#{repository_directory}/hooks" do
   source "hooks"
   owner "www-data"
   group "www-data"
-  mode 0o755
+  mode "755"
   files_owner "www-data"
   files_group "www-data"
-  files_mode 0o755
+  files_mode "755"
   purge false
 end
 
@@ -43,11 +43,11 @@ apache_module "dav_fs" do
 end
 
 apache_module "dav_svn" do
-  package "libapache2-svn"
+  package "libapache2-mod-svn"
 end
 
 apache_module "authz_svn" do
-  package "libapache2-svn"
+  package "libapache2-mod-svn"
 end
 
 ssl_certificate "svn.openstreetmap.org" do
@@ -65,5 +65,5 @@ template "/etc/cron.daily/svn-backup" do
   source "backup.cron.erb"
   owner "root"
   group "root"
-  mode 0o755
+  mode "755"
 end

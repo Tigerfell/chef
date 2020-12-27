@@ -19,6 +19,7 @@
 
 require "json"
 
+include_recipe "accounts"
 include_recipe "apache"
 include_recipe "passenger"
 include_recipe "git"
@@ -42,6 +43,7 @@ package %w[
 
 package %w[
   sqlite3
+  sqlite3-pcre
   osmium-tool
   pyosmium
   curl
@@ -54,6 +56,7 @@ package "ruby#{ruby_version}"
 
 gem_package "bundler#{ruby_version}" do
   package_name "bundler"
+  version "~> 1.16.2"
   gem_binary "gem#{ruby_version}"
   options "--format-executable"
 end
@@ -65,14 +68,14 @@ apache_module "headers"
 directory "/var/log/taginfo" do
   owner "taginfo"
   group "taginfo"
-  mode 0o755
+  mode "755"
 end
 
 template "/etc/sudoers.d/taginfo" do
   source "sudoers.erb"
   owner "root"
   group "root"
-  mode 0o440
+  mode "440"
 end
 
 node[:taginfo][:sites].each do |site|
@@ -87,19 +90,47 @@ node[:taginfo][:sites].each do |site|
   directory "/var/log/taginfo/#{site_name}" do
     owner "taginfo"
     group "taginfo"
-    mode 0o755
+    mode "755"
   end
 
   directory directory do
     owner "taginfo"
     group "taginfo"
-    mode 0o755
+    mode "755"
+  end
+
+  git "#{directory}/taginfo-tools" do
+    action :sync
+    repository "https://github.com/taginfo/taginfo-tools.git"
+    revision "osmorg-taginfo-live"
+    depth 1
+    enable_submodules true
+    user "taginfo"
+    group "taginfo"
+  end
+
+  directory "#{directory}/build" do
+    owner "taginfo"
+    group "taginfo"
+    mode "755"
+  end
+
+  execute "compile_taginfo_tools" do
+    action :nothing
+    user "taginfo"
+    group "taginfo"
+    cwd "#{directory}/build"
+    command "cmake #{directory}/taginfo-tools -DCMAKE_BUILD_TYPE=Release && make"
+    subscribes :run, "apt_package[libprotozero-dev]"
+    subscribes :run, "apt_package[libosmium2-dev]"
+    subscribes :run, "git[#{directory}/taginfo-tools]"
   end
 
   git "#{directory}/taginfo" do
     action :sync
-    repository "git://github.com/taginfo/taginfo.git"
+    repository "https://github.com/taginfo/taginfo.git"
     revision "osmorg-taginfo-live"
+    depth 1
     user "taginfo"
     group "taginfo"
   end
@@ -116,10 +147,11 @@ node[:taginfo][:sites].each do |site|
     settings["logging"]["directory"] = "/var/log/taginfo/#{site_name}"
     settings["opensearch"]["shortname"] = "Taginfo"
     settings["opensearch"]["contact"] = "webmaster@openstreetmap.org"
+    settings["paths"]["bin_dir"] = "#{directory}/build/src"
     settings["sources"]["download"] = ""
-    settings["sources"]["create"] = "db languages projects wiki"
-    settings["sources"]["db"]["planetfile"] = "/var/lib/planet/planet.pbf"
-    settings["sources"]["db"]["bindir"] = "#{directory}/taginfo/tagstats"
+    settings["sources"]["create"] = "db languages projects wiki chronology"
+    settings["sources"]["db"]["planetfile"] = "/var/lib/planet/planet.osh.pbf"
+    settings["sources"]["chronology"]["osm_history_file"] = "/var/lib/planet/planet.osh.pbf"
     settings["tagstats"]["geodistribution"] = "DenseMmapArray"
 
     JSON.pretty_generate(settings)
@@ -128,20 +160,8 @@ node[:taginfo][:sites].each do |site|
   file "#{directory}/taginfo-config.json" do
     owner "taginfo"
     group "taginfo"
-    mode 0o644
+    mode "644"
     content settings
-    notifies :restart, "service[apache2]"
-  end
-
-  execute "#{directory}/taginfo/tagstats/Makefile" do
-    action :nothing
-    command "make"
-    cwd "#{directory}/taginfo/tagstats"
-    user "taginfo"
-    group "taginfo"
-    subscribes :run, "apt_package[libprotozero-dev]"
-    subscribes :run, "apt_package[libosmium2-dev]"
-    subscribes :run, "git[#{directory}/taginfo]"
     notifies :restart, "service[apache2]"
   end
 
@@ -160,7 +180,7 @@ node[:taginfo][:sites].each do |site|
     directory "#{directory}/#{dir}" do
       owner "taginfo"
       group "taginfo"
-      mode 0o755
+      mode "755"
     end
   end
 
@@ -168,7 +188,7 @@ node[:taginfo][:sites].each do |site|
     source "update.erb"
     owner "taginfo"
     group "taginfo"
-    mode 0o755
+    mode "755"
     variables :name => site_name, :directory => directory
   end
 
@@ -192,6 +212,6 @@ template "/usr/local/bin/taginfo-update" do
   source "taginfo-update.erb"
   owner "root"
   group "root"
-  mode 0o755
+  mode "755"
   variables :sites => node[:taginfo][:sites]
 end

@@ -17,16 +17,20 @@
 # limitations under the License.
 #
 
+node.default[:memcached][:ip_address] = node.internal_ipaddress || "127.0.0.1"
+
+include_recipe "memcached"
 include_recipe "apache"
 include_recipe "web::rails"
+include_recipe "web::cgimap"
 
 web_passwords = data_bag_item("web", "passwords")
 
 apache_module "alias"
 apache_module "expires"
 apache_module "headers"
-apache_module "proxy_http"
-apache_module "proxy_balancer"
+apache_module "proxy"
+apache_module "proxy_fcgi"
 apache_module "lbmethod_byrequests"
 apache_module "lbmethod_bybusyness"
 apache_module "rewrite"
@@ -34,6 +38,16 @@ apache_module "unique_id"
 
 apache_site "default" do
   action [:disable]
+end
+
+remote_directory "#{node[:web][:base_directory]}/static" do
+  source "static"
+  owner "root"
+  group "root"
+  mode "755"
+  files_owner "root"
+  files_group "root"
+  files_mode "644"
 end
 
 apache_site "www.openstreetmap.org" do
@@ -46,7 +60,7 @@ template "/etc/logrotate.d/apache2" do
   source "logrotate.apache.erb"
   owner "root"
   group "root"
-  mode 0o644
+  mode "644"
 end
 
 service "rails-jobs@mailers" do
@@ -54,4 +68,24 @@ service "rails-jobs@mailers" do
   supports :restart => true
   subscribes :restart, "rails_port[www.openstreetmap.org]"
   subscribes :restart, "systemd_service[rails-jobs]"
+end
+
+service "rails-jobs@storage" do
+  action [:enable, :start]
+  supports :restart => true
+  subscribes :restart, "rails_port[www.openstreetmap.org]"
+  subscribes :restart, "systemd_service[rails-jobs]"
+end
+
+if node[:web][:primary_cluster]
+  service "rails-jobs@traces" do
+    action [:enable, :start]
+    supports :restart => true
+    subscribes :restart, "rails_port[www.openstreetmap.org]"
+    subscribes :restart, "systemd_service[rails-jobs]"
+  end
+else
+  service "rails-jobs@traces" do
+    action [:disable, :stop]
+  end
 end

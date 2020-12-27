@@ -2,12 +2,6 @@ name "karm"
 description "Master role applied to karm"
 
 default_attributes(
-  :apt => {
-    :sources => ["postgresql"]
-  },
-  :db => {
-    :cluster => "9.5/main"
-  },
   :networking => {
     :interfaces => {
       :internal_ipv4 => {
@@ -16,7 +10,7 @@ default_attributes(
         :family => :inet,
         :address => "10.0.48.50",
         :bond => {
-          :slaves => %w[enp1s0f0 enp1s0f1]
+          :slaves => %w[enp1s0f0 enp1s0f1 enp2s0f0 enp2s0f1]
         }
       }
     }
@@ -46,6 +40,5 @@ default_attributes(
 
 run_list(
   "role[equinix]",
-  "role[db-master]",
-  "role[db-backup]"
+  "role[db-slave]"
 )

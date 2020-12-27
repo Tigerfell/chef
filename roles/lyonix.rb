@@ -4,19 +4,12 @@ description "Role applied to all servers at LyonIX"
 default_attributes(
   :hosted_by => "LyonIX",
   :location => "Lyon, France",
-  :networking => {
-    :nameservers => ["77.95.64.205", "77.95.64.206", "8.8.8.8", "8.8.4.4"],
-    :roles => {
-      :external => {
-        :zone => "ly"
-      }
-    }
-  },
   :snmpd => {
-    :clients => ["77.95.64.0/24", "77.95.70.0/24"],
+    :clients => ["77.95.64.0/21"],
+    :clients6 => ["2a03:9180::/32", "2001:7f8:47::/48"],
     :community => "lyonix",
     :location => "LYON",
-    :contact => "noc@lyonix.net"
+    :contact => "sysadm@rezopole.net"
   }
 )
 

@@ -32,7 +32,7 @@ template "/etc/apt/preferences.d/99-chef" do
   source "preferences.erb"
   owner "root"
   group "root"
-  mode 0o644
+  mode "644"
 end
 
 apt_update "/etc/apt/sources.list" do
@@ -49,7 +49,7 @@ template "/etc/apt/sources.list" do
   source "sources.list.erb"
   owner "root"
   group "root"
-  mode 0o644
+  mode "644"
   variables :archive_host => archive_host, :codename => node[:lsb][:codename]
   notifies :update, "apt_update[/etc/apt/sources.list]", :immediately
 end
@@ -71,6 +71,16 @@ end
 apt_repository "ubuntugis-unstable" do
   action repository_actions["ubuntugis-unstable"]
   uri "ppa:ubuntugis/ubuntugis-unstable"
+end
+
+apt_repository "git-core" do
+  action repository_actions["git-core"]
+  uri "ppa:git-core/ppa"
+end
+
+apt_repository "maxmind" do
+  action repository_actions["maxmind"]
+  uri "ppa:maxmind/ppa"
 end
 
 apt_repository "openstreetmap" do
@@ -96,7 +106,7 @@ end
 apt_repository "management-component-pack" do
   action repository_actions["management-component-pack"]
   uri "https://downloads.linux.hpe.com/SDR/repo/mcp"
-  distribution "#{node[:lsb][:codename]}/current-gen9"
+  distribution "bionic/current-gen9"
   components ["non-free"]
   key "C208ADDE26C2B797"
 end
@@ -153,7 +163,23 @@ apt_repository "mediawiki" do
   uri "https://releases.wikimedia.org/debian"
   distribution "jessie-mediawiki"
   components ["main"]
-  key "90E9F83F22250DD7"
+  key "AF380A3036A03444"
+end
+
+apt_repository "docker" do
+  action repository_actions["docker"]
+  uri "https://download.docker.com/linux/ubuntu"
+  arch "amd64"
+  components ["stable"]
+  key "https://download.docker.com/linux/ubuntu/gpg"
+end
+
+apt_repository "grafana" do
+  action repository_actions["grafana"]
+  uri "https://packages.grafana.com/enterprise/deb"
+  distribution "stable"
+  components ["main"]
+  key "https://packages.grafana.com/gpg.key"
 end
 
 package "unattended-upgrades"
@@ -168,7 +194,7 @@ if Dir.exist?("/usr/share/unattended-upgrades")
   file "/etc/apt/apt.conf.d/20auto-upgrades" do
     user "root"
     group "root"
-    mode 0o644
+    mode "644"
     content auto_upgrades
   end
 end
@@ -177,5 +203,5 @@ template "/etc/apt/apt.conf.d/60chef" do
   source "apt.conf.erb"
   owner "root"
   group "root"
-  mode 0o644
+  mode "644"
 end

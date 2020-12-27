@@ -17,13 +17,15 @@
 # limitations under the License.
 #
 
+include_recipe "apache"
+include_recipe "apt"
+include_recipe "git"
+include_recipe "geoipupdate"
+include_recipe "munin"
+include_recipe "nodejs"
+include_recipe "passenger"
 include_recipe "tools"
 include_recipe "web::base"
-
-include_recipe "apache"
-include_recipe "passenger"
-include_recipe "git"
-include_recipe "nodejs"
 
 web_passwords = data_bag_item("web", "passwords")
 db_passwords = data_bag_item("db", "passwords")
@@ -44,7 +46,7 @@ template "/etc/cron.hourly/passenger" do
   source "passenger.cron.erb"
   owner "root"
   group "root"
-  mode 0o755
+  mode "755"
 end
 
 ruby_version = node[:passenger][:ruby_version]
@@ -111,7 +113,20 @@ rails_port "www.openstreetmap.org" do
   storage_configuration storage
   storage_service "aws"
   storage_url "https://openstreetmap-user-avatars.s3.dualstack.eu-west-1.amazonaws.com"
+  tile_cdn_url "https://cdn-fastly-test.tile.openstreetmap.org/{z}/{x}/{y}.png"
 end
+
+gem_package "bundler#{ruby_version}" do
+  package_name "bundler"
+  gem_binary "gem#{ruby_version}"
+  options "--format-executable"
+end
+
+bundle = if File.exist?("/usr/bin/bundle#{ruby_version}")
+           "/usr/bin/bundle#{ruby_version}"
+         else
+           "/usr/local/bin/bundle#{ruby_version}"
+         end
 
 systemd_service "rails-jobs@" do
   description "Rails job queue runner"
@@ -119,7 +134,7 @@ systemd_service "rails-jobs@" do
   environment "RAILS_ENV" => "production", "QUEUE" => "%I"
   user "rails"
   working_directory rails_directory
-  exec_start "/usr/local/bin/bundle#{ruby_version} exec rake jobs:work"
+  exec_start "#{bundle} exec rake jobs:work"
   restart "on-failure"
   private_tmp true
   private_devices true
@@ -134,7 +149,7 @@ template "/usr/local/bin/cleanup-rails-assets" do
   source "cleanup-assets.erb"
   owner "root"
   group "root"
-  mode 0o755
+  mode "755"
 end
 
 gem_package "apachelogregex"
@@ -144,7 +159,7 @@ template "/usr/local/bin/api-statistics" do
   source "api-statistics.erb"
   owner "root"
   group "root"
-  mode 0o755
+  mode "755"
 end
 
 systemd_service "api-statistics" do

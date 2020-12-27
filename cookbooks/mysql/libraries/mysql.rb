@@ -85,7 +85,9 @@ module OpenStreetMap
     end
 
     def mysql_users
-      @mysql_users ||= query("SELECT * FROM user").each_with_object({}) do |user, users|
+      privilege_columns = USER_PRIVILEGES.collect { |privilege| "#{privilege}_priv" }.join(", ")
+
+      @mysql_users ||= query("SELECT user, host, #{privilege_columns} FROM user").each_with_object({}) do |user, users|
         name = "'#{user[:user]}'@'#{user[:host]}'"
 
         users[name] = USER_PRIVILEGES.each_with_object({}) do |privilege, privileges|
@@ -131,6 +133,12 @@ module OpenStreetMap
       case privilege
       when :grant
         "GRANT OPTION"
+      when :show_db
+        "SHOW DATABASES"
+      when :repl_slave
+        "REPLICATION SLAVE"
+      when :repl_client
+        "REPLICATION CLIENT"
       when :create_tmp_table
         "CREATE TEMPORARY TABLES"
       else

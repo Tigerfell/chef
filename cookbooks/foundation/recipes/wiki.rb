@@ -26,6 +26,11 @@ mediawiki_site "wiki.osmfoundation.org" do
            "foundation.openstreetmap.org", "foundation.osm.org"]
   sitename "OpenStreetMap Foundation"
   directory "/srv/wiki.osmfoundation.org"
+  fpm_max_children 20
+  fpm_start_servers 5
+  fpm_min_spare_servers 5
+  fpm_max_spare_servers 10
+  fpm_prometheus_port 11001
   database_name "osmf-wiki"
   database_user "osmf-wikiuser"
   database_password passwords["wiki"]["database"]
@@ -39,17 +44,18 @@ mediawiki_site "wiki.osmfoundation.org" do
   recaptcha_public_key "6LflIQATAAAAAMXyDWpba-FgipVzE-aGF4HIR59N"
   recaptcha_private_key passwords["wiki"]["recaptcha"]
   extra_file_extensions ["mp3"]
+  version "1.34"
 end
 
 mediawiki_skin "osmf" do
   site "wiki.osmfoundation.org"
-  repository "git://github.com/openstreetmap/mediawiki-skins-osmf.git"
+  repository "https://github.com/openstreetmap/mediawiki-skins-osmf.git"
   revision "master"
 end
 
 mediawiki_skin "OSMFoundation" do
   site "wiki.osmfoundation.org"
-  repository "git://github.com/osmfoundation/osmf-mediawiki-skin.git"
+  repository "https://github.com/osmfoundation/osmf-mediawiki-skin.git"
   revision "master"
   legacy false
 end
@@ -57,5 +63,5 @@ end
 cookbook_file "/srv/wiki.osmfoundation.org/Wiki.png" do
   owner node[:mediawiki][:user]
   group node[:mediawiki][:group]
-  mode 0o644
+  mode "644"
 end

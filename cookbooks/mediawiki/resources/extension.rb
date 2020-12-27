@@ -19,7 +19,7 @@
 
 default_action :create
 
-property :extension, :kind_of => String, :name_attribute => true
+property :extension, :kind_of => String, :name_property => true
 property :site, :kind_of => String, :required => true
 property :source, :kind_of => String
 property :template, :kind_of => String
@@ -38,10 +38,10 @@ action :create do
       source new_resource.source
       owner node[:mediawiki][:user]
       group node[:mediawiki][:group]
-      mode 0o755
+      mode "755"
       files_owner node[:mediawiki][:user]
       files_group node[:mediawiki][:group]
-      files_mode 0o755
+      files_mode "755"
     end
   else
     extension_repository = new_resource.repository || default_repository
@@ -57,10 +57,11 @@ action :create do
       action :sync
       repository extension_repository
       reference extension_reference
+      depth 1
       enable_submodules true
       user node[:mediawiki][:user]
       group node[:mediawiki][:group]
-      ignore_failure extension_repository.start_with?("git://github.com/wikimedia/mediawiki-extensions")
+      ignore_failure extension_repository.start_with?("https://github.com/wikimedia/mediawiki-extensions")
     end
   end
 
@@ -70,7 +71,7 @@ action :create do
       source new_resource.template
       user node[:mediawiki][:user]
       group node[:mediawiki][:group]
-      mode 0o664
+      mode "664"
       variables new_resource.variables
     end
   else
@@ -78,7 +79,7 @@ action :create do
       content "<?php wfLoadExtension( '#{new_resource.extension}' );\n"
       user node[:mediawiki][:user]
       group node[:mediawiki][:group]
-      mode 0o664
+      mode "664"
     end
   end
 
@@ -88,6 +89,7 @@ action :create do
     cwd mediawiki_directory
     user node[:mediawiki][:user]
     group node[:mediawiki][:group]
+    environment "COMPOSER_HOME" => site_directory
     only_if { ::File.exist?("#{extension_directory}/composer.json") }
     subscribes :run, "git[#{extension_directory}]"
   end
@@ -122,7 +124,7 @@ action_class do
   end
 
   def default_repository
-    "git://github.com/wikimedia/mediawiki-extensions-#{new_resource.extension}.git"
+    "https://github.com/wikimedia/mediawiki-extensions-#{new_resource.extension}.git"
   end
 end
 

@@ -6,4 +6,6 @@ description       "Installs and configures a geographic DNS server"
 
 version           "1.0.0"
 supports          "ubuntu"
+depends           "geoipupdate"
+depends           "networking"
 depends           "systemd"

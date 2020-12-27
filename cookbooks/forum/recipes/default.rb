@@ -16,21 +16,26 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
+
+include_recipe "accounts"
 include_recipe "apache"
 include_recipe "git"
 include_recipe "mysql"
+include_recipe "php::apache"
+
+cache_dir = Chef::Config[:file_cache_path]
 
 passwords = data_bag_item("forum", "passwords")
 
 package %w[
-  php
   php-cli
   php-mysql
   php-xml
   php-apcu
+  unzip
 ]
 
-apache_module "php7.2"
+apache_module "env"
 apache_module "rewrite"
 
 ssl_certificate "forum.openstreetmap.org" do
@@ -45,7 +50,7 @@ end
 directory "/srv/forum.openstreetmap.org" do
   owner "forum"
   group "forum"
-  mode 0o755
+  mode "755"
 end
 
 git "/srv/forum.openstreetmap.org/html/" do
@@ -58,41 +63,41 @@ git "/srv/forum.openstreetmap.org/html/" do
   notifies :reload, "service[apache2]"
 end
 
-remote_file "/var/cache/chef/air3_v0.8.zip" do
+remote_file "#{cache_dir}/air3_v0.8.zip" do
   action :create_if_missing
   source "https://fluxbb.org/resources/styles/air3/releases/0.8/air3_v0.8.zip"
   owner "root"
   group "root"
-  mode 0o644
+  mode "644"
   backup false
 end
 
-execute "/var/cache/chef/air3_v0.8.zip" do
+execute "#{cache_dir}/air3_v0.8.zip" do
   action :nothing
-  command "unzip -o -qq /var/cache/chef/air3_v0.8.zip Air3.css Air3/*"
+  command "unzip -o -qq #{cache_dir}/air3_v0.8.zip Air3.css 'Air3/*'"
   cwd "/srv/forum.openstreetmap.org/html/style"
   user "forum"
   group "forum"
-  subscribes :run, "remote_file[/var/cache/chef/air3_v0.8.zip]", :immediately
+  subscribes :run, "remote_file[#{cache_dir}/air3_v0.8.zip]", :immediately
 end
 
 directory "/srv/forum.openstreetmap.org/html/cache/" do
   owner "www-data"
   group "www-data"
-  mode 0o755
+  mode "755"
 end
 
 directory "/srv/forum.openstreetmap.org/html/img/avatars/" do
   owner "www-data"
   group "www-data"
-  mode 0o755
+  mode "755"
 end
 
 template "/srv/forum.openstreetmap.org/html/config.php" do
   source "config.php.erb"
   owner "forum"
   group "www-data"
-  mode 0o440
+  mode "440"
   variables :passwords => passwords
 end
 
@@ -108,6 +113,6 @@ template "/etc/cron.daily/forum-backup" do
   source "backup.cron.erb"
   owner "root"
   group "root"
-  mode 0o750
+  mode "750"
   variables :passwords => passwords
 end

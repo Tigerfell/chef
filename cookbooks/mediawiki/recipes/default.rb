@@ -17,14 +17,16 @@
 # limitations under the License.
 #
 
-include_recipe "memcached"
+include_recipe "accounts"
 include_recipe "apache"
-include_recipe "mysql"
+include_recipe "apt"
 include_recipe "git"
+include_recipe "memcached"
+include_recipe "mysql"
+include_recipe "php::fpm"
 
 # Mediawiki Base Requirements
 package %w[
-  php
   php-cli
   php-curl
   php-gd
@@ -34,6 +36,7 @@ package %w[
   php-xml
   php-zip
   composer
+  unzip
 ]
 
 # Mediawiki enhanced difference engine
@@ -64,17 +67,23 @@ package %w[
 ]
 
 # Mediawiki packages for SyntaxHighight support
-package "python-pygments"
+package "python3-pygments"
 
 file "/etc/mediawiki/parsoid/settings.js" do
   action :delete
 end
 
 template "/etc/mediawiki/parsoid/config.yaml" do
+  action :nothing
   source "parsoid-config.yaml.erb"
   owner "root"
   group "root"
-  mode 0o644
+  mode "644"
+end
+
+notify_group "parsoid-config" do
+  action :run
+  notifies :create, "template[/etc/mediawiki/parsoid/config.yaml]"
 end
 
 service "parsoid" do
@@ -84,10 +93,10 @@ service "parsoid" do
   subscribes :restart, "template[/etc/mediawiki/parsoid/config.yaml]"
 end
 
-apache_module "php7.2"
-
-link "/etc/php/7.2/apache2/conf.d/20-wikidiff2.ini" do
+link "/etc/php/#{node[:php][:version]}/fpm/conf.d/20-wikidiff2.ini" do
   to "../../mods-available/wikidiff2.ini"
 end
 
+apache_module "proxy"
+apache_module "proxy_fcgi"
 apache_module "rewrite"

@@ -4,14 +4,20 @@ description "Master role applied to pummelzacken"
 default_attributes(
   :networking => {
     :interfaces => {
+      :bond => {
+        :interface => "bond0",
+        :bond => {
+          :slaves => %w[eno1 enp5s0f0]
+        }
+      },
       :internal_ipv4 => {
-        :interface => "em1.2801",
+        :interface => "bond0.2801",
         :role => :internal,
         :family => :inet,
         :address => "10.0.0.20"
       },
       :external_ipv4 => {
-        :interface => "em1.2800",
+        :interface => "bond0.2800",
         :role => :external,
         :family => :inet,
         :address => "193.60.236.18"
@@ -19,7 +25,7 @@ default_attributes(
     }
   },
   :postgresql => {
-    :versions => ["10"],
+    :versions => ["13"],
     :settings => {
       :defaults => {
         :listen_addresses => "10.0.0.20",
@@ -27,15 +33,22 @@ default_attributes(
         :maintenance_work_mem => "10GB",
         :random_page_cost => "1.5",
         :effective_cache_size => "60GB",
+        :effective_io_concurrency => "256",
         :fsync => "on"
       }
+    }
+  },
+  :apache => {
+    :event => {
+      :max_request_workers => 3000,
+      :threads_per_child => 70
     }
   },
   :nominatim => {
     :state => "standalone",
     :dbadmins => %w[lonvia tomh],
-    :dbcluster => "10/main",
-    :postgis => "2.4",
+    :dbcluster => "13/main",
+    :postgis => "3",
     :enable_backup => true,
     :flatnode_file => "/ssd/nominatim/nodes.store",
     :tablespaces => {
@@ -49,11 +62,6 @@ default_attributes(
       "isearch" => "/ssd/tablespaces/isearch",
       "daux" => "/data/tablespaces/daux",
       "iaux" => "/data/tablespaces/iaux"
-    },
-    :fpm_pools => {
-      :www => {
-        :max_children => "40"
-      }
     }
   }
 )

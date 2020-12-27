@@ -19,14 +19,11 @@
 
 default_action :run
 
-property :command, :kind_of => String, :name_attribute => true
+property :command, :kind_of => String, :name_property => true
 property :cluster, :kind_of => String, :required => true
 property :database, :kind_of => String, :required => true
-property :user, :default => "postgres"
-property :group, :default => "postgres"
-
-action :nothing do
-end
+property :user, :kind_of => String, :default => "postgres"
+property :group, :kind_of => String, :default => "postgres"
 
 action :run do
   options = { :database => new_resource.database, :user => new_resource.user, :group => new_resource.group }

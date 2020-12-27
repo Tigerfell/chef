@@ -28,12 +28,6 @@ default_attributes(
           :connection_limit => "-"
         }
       ]
-    },
-    :nameservers => ["2a00:5884::7", "8.8.8.8", "8.8.4.4"],
-    :roles => {
-      :external => {
-        :zone => "grf"
-      }
     }
   }
 )

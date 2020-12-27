@@ -17,6 +17,10 @@
 # limitations under the License.
 #
 
+include_recipe "apt"
+include_recipe "munin"
+include_recipe "prometheus"
+
 if node[:squid][:version] >= 3
   apt_package "squid" do
     action :unlock
@@ -53,13 +57,13 @@ template "/etc/squid/squid.conf" do
   source "squid.conf.erb"
   owner "root"
   group "root"
-  mode 0o644
+  mode "644"
 end
 
 directory "/etc/squid/squid.conf.d" do
   owner "root"
   group "root"
-  mode 0o755
+  mode "755"
 end
 
 Array(node[:squid][:cache_dir]).each do |cache_dir|
@@ -72,7 +76,7 @@ Array(node[:squid][:cache_dir]).each do |cache_dir|
   directory cache_dir do
     owner "proxy"
     group "proxy"
-    mode 0o750
+    mode "750"
     recursive true
     notifies :restart, "service[squid]"
   end
@@ -85,40 +89,51 @@ systemd_tmpfile "/var/run/squid" do
   mode "0755"
 end
 
-address_families = %w[AF_UNIX AF_INET]
+address_families = %w[AF_UNIX AF_INET AF_INET6]
 
-# address_families << "AF_INET6" unless node.interfaces(:family => :inet6).empty?
+file "/etc/systemd/system/squid.service" do
+  action :delete
+end
+
+file "/etc/logrotate.d/squid.dpkg-dist" do
+  action :delete
+end
+
+squid_service_exec = if node[:lsb][:release].to_f < 20.04
+                       "/usr/sbin/squid -YC"
+                     else
+                       "/usr/sbin/squid --foreground -YC"
+                     end
 
 systemd_service "squid" do
-  description "Squid caching proxy"
-  after ["network.target", "nss-lookup.target"]
-  type "forking"
+  dropin "chef"
   limit_nofile 98304
-  exec_start_pre "/usr/sbin/squid -N -z"
-  exec_start "/usr/sbin/squid -Y"
-  exec_reload "/usr/sbin/squid -k reconfigure"
-  exec_stop "/usr/sbin/squid -k shutdown"
   private_tmp true
-  private_devices true
+  private_devices node[:squid][:private_devices]
   protect_system "full"
   protect_home true
   restrict_address_families address_families
-  restart "on-failure"
-  timeout_sec 0
+  restart "always"
+  exec_start "#{squid_service_exec}"
 end
 
 service "squid" do
-  action [:enable, :start]
+  action :enable
   subscribes :restart, "systemd_service[squid]"
-  subscribes :reload, "template[/etc/squid/squid.conf]"
+  subscribes :restart, "template[/etc/squid/squid.conf]"
   subscribes :reload, "template[/etc/resolv.conf]"
 end
 
-log "squid-restart" do
-  message "Restarting squid due to counter wraparound"
-  notifies :restart, "service[squid]"
+notify_group "squid-start" do
+  action :run
+  notifies :start, "service[squid]"
+end
+
+service "squid-restart" do
+  service_name "squid"
+  action :restart
   only_if do
-    IO.popen(["squidclient", "--host=127.0.0.1", "--port=80", "mgr:counters"]) do |io|
+    IO.popen(["squidclient", "--host=127.0.0.1", "--port=3128", "mgr:counters"]) do |io|
       io.each.grep(/^[a-z][a-z_.]+ = -[0-9]+$/).count.positive?
     end
   end
@@ -137,4 +152,9 @@ end
 
 munin_plugin "squid_delay_pools_noreferer" do
   action :delete
+end
+
+prometheus_exporter "squid" do
+  port 9301
+  listen_switch "listen"
 end

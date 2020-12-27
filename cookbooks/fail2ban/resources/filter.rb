@@ -19,7 +19,7 @@
 
 default_action :create
 
-property :filter, :kind_of => String, :name_attribute => true
+property :filter, :kind_of => String, :name_property => true
 property :source, :kind_of => String
 property :failregex, :kind_of => [String, Array]
 property :ignoreregex, :kind_of => [String, Array]
@@ -30,7 +30,7 @@ action :create do
       source new_resource.source
       owner "root"
       group "root"
-      mode 0o644
+      mode "644"
     end
   else
     template "/etc/fail2ban/filter.d/#{new_resource.filter}.conf" do
@@ -38,7 +38,7 @@ action :create do
       source "filter.erb"
       owner "root"
       group "root"
-      mode 0o644
+      mode "644"
       variables :failregex => new_resource.failregex,
                 :ignoreregex => new_resource.ignoreregex
     end

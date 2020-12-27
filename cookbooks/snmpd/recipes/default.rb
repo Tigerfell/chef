@@ -32,7 +32,7 @@ template "/etc/snmp/snmpd.conf" do
   source "snmpd.conf.erb"
   owner "root"
   group "root"
-  mode 0o600
+  mode "600"
   variables :communities => communities
   notifies :restart, "service[snmpd]"
 end
@@ -53,6 +53,30 @@ else
   firewall_rule "accept-snmp" do
     action :accept
     family "inet"
+    source "net"
+    dest "fw"
+    proto "udp"
+    dest_ports "snmp"
+    source_ports "1024:"
+  end
+end
+
+if node[:snmpd][:clients6]
+  node[:snmpd][:clients6].each do |address|
+    firewall_rule "accept-snmp" do
+      action :accept
+      family "inet6"
+      source "net:#{address}"
+      dest "fw"
+      proto "udp"
+      dest_ports "snmp"
+      source_ports "1024:"
+    end
+  end
+else
+  firewall_rule "accept-snmp" do
+    action :accept
+    family "inet6"
     source "net"
     dest "fw"
     proto "udp"

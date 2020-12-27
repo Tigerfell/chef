@@ -12,8 +12,8 @@
   #
   SSLEngine on
   SSLProxyEngine on
-  SSLCertificateFile /etc/ssl/certs/<%= node.name %>.pem
-  SSLCertificateKeyFile /etc/ssl/private/<%= node.name %>.key
+  SSLCertificateFile /etc/ssl/certs/<%= node[:fqdn] %>.pem
+  SSLCertificateKeyFile /etc/ssl/private/<%= node[:fqdn] %>.key
 
   # Configure location of static files and CGI scripts
   DocumentRoot /srv/tile.openstreetmap.org/html
@@ -25,6 +25,9 @@
 <% cache.ipaddresses(:role => :external).sort.each do |address| -%>
   RemoteIPTrustedProxy <%= address %>
 <% end -%>
+<% end -%>
+<% @fastly.sort.each do |address| -%>
+  RemoteIPTrustedProxy <%= address %>
 <% end -%>
 
   # Setup logging
@@ -40,6 +43,9 @@
   # Add diagnostics header to identify render server
   Header set X-TileRender "<%= node.name %>"
 
+  # Tell clients to use stale tiles if necessary
+  Header append Cache-Control "stale-while-revalidate=604800, stale-if-error=604800" "expr=%{CONTENT_TYPE} == 'image/png'"
+
   # Remove Proxy request header to mitigate https://httpoxy.org/
   RequestHeader unset Proxy early
 
@@ -52,9 +58,9 @@
   RewriteRule ^/(\d+)/(\d+)/(\d+)\.png/dirty/?$   /default/$1/$2/$3.png/dirty  [PT,T=text/plain,L]
 
   # Historical Files redirect
-  RedirectPermanent /processed_p.tar.bz2 https://planet.openstreetmap.org/historical-shapefiles/processed_p.tar.bz2
-  RedirectPermanent /shoreline_300.tar.bz2 https://planet.openstreetmap.org/historical-shapefiles/shoreline_300.tar.bz2
-  RedirectPermanent /world_boundaries-spherical.tgz https://planet.openstreetmap.org/historical-shapefiles/world_boundaries-spherical.tgz
+  RedirectPermanent /processed_p.tar.bz2 https://planet.openstreetmap.org/historical-shapefiles/
+  RedirectPermanent /shoreline_300.tar.bz2 https://planet.openstreetmap.org/historical-shapefiles/
+  RedirectPermanent /world_boundaries-spherical.tgz https://planet.openstreetmap.org/historical-shapefiles/
 
   # Redirect ACME certificate challenges
   RedirectPermanent /.well-known/acme-challenge/ http://acme.openstreetmap.org/.well-known/acme-challenge/

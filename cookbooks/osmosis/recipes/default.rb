@@ -22,11 +22,14 @@ include_recipe "chef"
 package "unzip"
 package "default-jre"
 
-osmosis_package = "osmosis-#{node[:osmosis][:version]}.zip"
-osmosis_directory = "/opt/osmosis-#{node[:osmosis][:version]}"
+cache_dir = Chef::Config[:file_cache_path]
 
-Dir.glob("/var/cache/chef/osmosis-*.zip").each do |zip|
-  next if zip == "/var/cache/chef/#{osmosis_package}"
+osmosis_version = node[:osmosis][:version]
+osmosis_package = "osmosis-#{osmosis_version}.zip"
+osmosis_directory = "/opt/osmosis-#{osmosis_version}"
+
+Dir.glob("#{cache_dir}/osmosis-*.zip").each do |zip|
+  next if zip == "#{cache_dir}/#{osmosis_package}"
 
   file zip do
     action :delete
@@ -37,25 +40,25 @@ end
 directory osmosis_directory do
   owner "root"
   group "root"
-  mode 0o755
+  mode "755"
 end
 
-execute "/var/cache/chef/#{osmosis_package}" do
+remote_file "#{cache_dir}/#{osmosis_package}" do
+  action :create_if_missing
+  source "https://github.com/openstreetmap/osmosis/releases/download/#{osmosis_version}/osmosis-#{osmosis_version}.zip"
+  owner "root"
+  group "root"
+  mode "644"
+  backup false
+end
+
+execute "#{cache_dir}/#{osmosis_package}" do
   action :nothing
-  command "unzip -q /var/cache/chef/#{osmosis_package}"
+  command "unzip -q #{cache_dir}/#{osmosis_package}"
   cwd osmosis_directory
   user "root"
   group "root"
-end
-
-remote_file "/var/cache/chef/#{osmosis_package}" do
-  action :create_if_missing
-  source "https://bretth.dev.openstreetmap.org/osmosis-build/#{osmosis_package}"
-  owner "root"
-  group "root"
-  mode 0o644
-  backup false
-  notifies :run, "execute[/var/cache/chef/#{osmosis_package}]"
+  subscribes :run, "remote_file[#{cache_dir}/#{osmosis_package}]"
 end
 
 link "/usr/local/bin/osmosis" do

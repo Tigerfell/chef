@@ -10,15 +10,15 @@ default_attributes(
   },
   :hosted_by => "AARNet",
   :location => "Carlton, Victoria, Australia",
-  :timezone => "Australia/Melbourne",
-  :networking => {
-    :nameservers => ["202.158.207.1", "202.158.207.2"]
-  }
+  :timezone => "Australia/Melbourne"
 )
 
 override_attributes(
+  :networking => {
+    :nameservers => ["202.158.207.1", "202.158.207.2"]
+  },
   :ntp => {
-    :servers => ["0.au.pool.ntp.org", "1.au.pool.ntp.org", "europe.pool.ntp.org"]
+    :servers => ["0.au.pool.ntp.org", "1.au.pool.ntp.org", "oceania.pool.ntp.org"]
   }
 )
 

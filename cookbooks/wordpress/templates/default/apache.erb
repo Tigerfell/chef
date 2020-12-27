@@ -35,15 +35,12 @@
   Alias <%= url %> <%= directory %>
   <Directory <%= directory %>>
     AllowOverride None
-    php_admin_flag engine off
     Require all granted
+    <FilesMatch ".+\.ph(ar|p|tml)$">
+      SetHandler None
+    </FilesMatch>
   </Directory>
 <% end -%>
-
-  php_admin_value open_basedir <%= @directory %>/:/usr/share/php/:/tmp/
-  php_admin_value disable_functions "exec,shell_exec,system,passthru,popen,proc_open"
-  php_value upload_max_filesize 70M
-  php_value post_max_size 100M
 
   <Directory <%= @directory %>>
     RewriteEngine on
@@ -62,6 +59,10 @@
     AllowOverride AuthConfig
 
     Require all granted
+
+    <FilesMatch ".+\.ph(ar|p|tml)$">
+      SetHandler "proxy:unix:/run/php/<%= @name %>.sock|fcgi://127.0.0.1"
+    </FilesMatch>
   </Directory>
 
   <Files <%= @directory %>/wp-config.php>
@@ -71,7 +72,9 @@
   <Directory <%= @directory %>/uploads>
     AllowOverride None
     AddType text/plain .html .htm .shtml
-    php_admin_flag engine off
+    <FilesMatch ".+\.ph(ar|p|tml)$">
+      SetHandler None
+    </FilesMatch>
   </Directory>
 
   <Directory ~ "\.svn">

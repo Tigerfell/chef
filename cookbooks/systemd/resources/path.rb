@@ -20,7 +20,7 @@
 default_action :create
 
 property :path, String, :name_property => true
-property :description, String, :required => true
+property :description, String, :required => [:create]
 property :after, [String, Array]
 property :wants, [String, Array]
 property :path_exists, [String, Array]
@@ -29,7 +29,7 @@ property :path_changed, [String, Array]
 property :path_modified, [String, Array]
 property :directory_not_empty, [String, Array]
 property :unit, String
-property :make_directory, [TrueClass, FalseClass]
+property :make_directory, [true, false]
 property :directory_mode, Integer
 
 action :create do
@@ -40,7 +40,7 @@ action :create do
     source "path.erb"
     owner "root"
     group "root"
-    mode 0o644
+    mode "644"
     variables path_variables
   end
 

@@ -39,7 +39,6 @@ default_attributes(
     "/store/rails" => { :host => "ironbelly", :path => "/store/rails" }
   },
   :postgresql => {
-    :versions => ["9.5"],
     :settings => {
       :defaults => {
         :listen_addresses => "*",
@@ -51,7 +50,6 @@ default_attributes(
         :cpu_tuple_cost => "0.1",
         :log_min_duration_statement => "1000",
         :late_authentication_rules => [
-          { :address => "10.0.16.0/20" },
           { :address => "10.0.32.0/20" },
           { :address => "10.0.48.0/20" }
         ]

@@ -19,10 +19,10 @@
 
 default_action [:create, :enable]
 
-property :site, :kind_of => String, :name_attribute => true
+property :site, :kind_of => String, :name_property => true
 property :directory, :kind_of => String
 property :cookbook, :kind_of => String
-property :template, :kind_of => String, :required => true
+property :template, :kind_of => String, :required => [:create]
 property :variables, :kind_of => Hash, :default => {}
 property :reload_apache, :kind_of => [TrueClass, FalseClass], :default => true
 
@@ -32,7 +32,7 @@ action :create do
     source new_resource.template
     owner "root"
     group "root"
-    mode 0o644
+    mode "644"
     variables new_resource.variables.merge(:name => new_resource.site, :directory => site_directory)
   end
 end

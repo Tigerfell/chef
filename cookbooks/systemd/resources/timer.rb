@@ -20,7 +20,7 @@
 default_action :create
 
 property :timer, String, :name_property => true
-property :description, String, :required => true
+property :description, String, :required => [:create]
 property :after, [String, Array]
 property :wants, [String, Array]
 property :on_active_sec, [Integer, String]
@@ -32,9 +32,9 @@ property :on_calendar, String
 property :accuracy_sec, [Integer, String]
 property :randomized_delay_sec, [Integer, String]
 property :unit, String
-property :persistent, [TrueClass, FalseClass]
-property :wake_system, [TrueClass, FalseClass]
-property :remain_after_elapse, [TrueClass, FalseClass]
+property :persistent, [true, false]
+property :wake_system, [true, false]
+property :remain_after_elapse, [true, false]
 
 action :create do
   timer_variables = new_resource.to_hash
@@ -44,7 +44,7 @@ action :create do
     source "timer.erb"
     owner "root"
     group "root"
-    mode 0o644
+    mode "644"
     variables timer_variables
   end
 

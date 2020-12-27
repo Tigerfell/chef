@@ -16,18 +16,6 @@ default_attributes(
     :modules => [
       "it87"
     ]
-  },
-  :openvpn => {
-    :address => "10.0.16.3",
-    :tunnels => {
-      :shenron2ucl => {
-        :port => "1194",
-        :mode => "server",
-        :peer => {
-          :host => "ridley.openstreetmap.org"
-        }
-      }
-    }
   }
 )
 
@@ -51,7 +39,8 @@ override_attributes(
         :gateway => "fe80::1"
       }
     },
-    :nameservers => ["89.16.162.20", "2001:41c9:2:d6::20"]
+    :nameservers => ["1.1.1.1", "1.0.0.1", "2606:4700:4700::1111", "2606:4700:4700::1001"],
+    :private_address => "10.0.16.100"
   }
 )
 
@@ -63,6 +52,5 @@ run_list(
   "role[trac]",
   "role[osqa]",
   "role[irc]",
-  "recipe[blogs]",
-  "recipe[openvpn]"
+  "recipe[blogs]"
 )

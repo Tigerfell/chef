@@ -17,6 +17,8 @@
 # limitations under the License.
 #
 
+node.default[:memcached][:ip_address] = node.internal_ipaddress
+
 include_recipe "memcached"
 include_recipe "apache"
 include_recipe "web::rails"
@@ -40,20 +42,10 @@ apache_site "www.openstreetmap.org" do
             :secret_key_base => web_passwords["secret_key_base"]
 end
 
-node.normal[:memcached][:ip_address] = node.internal_ipaddress
-
 service "rails-jobs@storage" do
-  action [:enable, :start]
-  supports :restart => true
-  subscribes :restart, "rails_port[www.openstreetmap.org]"
-  subscribes :restart, "systemd_service[rails-jobs]"
+  action [:disable, :stop]
 end
 
-if node[:web][:primary_cluster]
-  service "rails-jobs@traces" do
-    action [:enable, :start]
-    supports :restart => true
-    subscribes :restart, "rails_port[www.openstreetmap.org]"
-    subscribes :restart, "systemd_service[rails-jobs]"
-  end
+service "rails-jobs@traces" do
+  action [:disable, :stop]
 end

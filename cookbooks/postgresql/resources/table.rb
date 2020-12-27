@@ -19,11 +19,11 @@
 
 default_action :create
 
-property :table, :kind_of => String, :name_attribute => true
+property :table, :kind_of => String, :name_property => true
 property :cluster, :kind_of => String, :required => true
 property :database, :kind_of => String, :required => true
 property :schema, :kind_of => String, :default => "public"
-property :owner, :kind_of => String, :required => true
+property :owner, :kind_of => String, :required => [:create]
 property :permissions, :kind_of => Hash, :default => {}
 
 action :create do

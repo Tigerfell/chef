@@ -17,6 +17,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+include_recipe "munin"
+
 package %w[
   chrony
   tzdata
@@ -40,7 +42,7 @@ template "/etc/chrony/chrony.conf" do
   source "chrony.conf.erb"
   owner "root"
   group "root"
-  mode 0o644
+  mode "644"
   notifies :restart, "service[chrony]"
 end
 
@@ -48,8 +50,24 @@ service "systemd-timesyncd" do
   action [:stop, :disable]
 end
 
+systemd_service "chrony-restart" do
+  service "chrony"
+  dropin "restart"
+  restart "on-failure"
+  notifies :restart, "service[chrony]"
+end
+
 service "chrony" do
   action [:enable, :start]
 end
 
 munin_plugin "chrony"
+
+# chrony occasionally marks all servers offline during a network outage.
+# force online all sources during a chef run
+execute "chronyc-online" do
+  command "/usr/bin/chronyc online"
+  user "root"
+  group "root"
+  ignore_failure true
+end

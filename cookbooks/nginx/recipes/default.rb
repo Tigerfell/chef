@@ -17,31 +17,33 @@
 # limitations under the License.
 #
 
-package "nginx"
+include_recipe "apt"
+include_recipe "munin"
+include_recipe "prometheus"
+include_recipe "ssl"
 
-resolvers = node[:networking][:nameservers].map do |resolver|
-  IPAddr.new(resolver).ipv6? ? "[#{resolver}]" : resolver
-end
+package "nginx"
 
 template "/etc/nginx/nginx.conf" do
   source "nginx.conf.erb"
   owner "root"
   group "root"
-  mode 0o644
-  variables :resolvers => resolvers
+  mode "644"
 end
 
-directory "/var/cache/nginx/fastcgi-cache" do
+directory node[:nginx][:cache][:fastcgi][:directory] do
   owner "www-data"
   group "root"
-  mode 0o755
+  mode "755"
+  recursive true
   only_if { node[:nginx][:cache][:fastcgi][:enable] }
 end
 
-directory "/var/cache/nginx/proxy-cache" do
+directory node[:nginx][:cache][:proxy][:directory] do
   owner "www-data"
   group "root"
-  mode 0o755
+  mode "755"
+  recursive true
   only_if { node[:nginx][:cache][:proxy][:enable] }
 end
 
@@ -49,4 +51,32 @@ service "nginx" do
   action [:enable] # Do not start the service as config may be broken from failed chef run
   supports :status => true, :restart => true, :reload => true
   subscribes :restart, "template[/etc/nginx/nginx.conf]"
+end
+
+munin_plugin_conf "nginx" do
+  template "munin.erb"
+end
+
+package "libwww-perl"
+
+munin_plugin "nginx_request"
+munin_plugin "nginx_status"
+
+prometheus_exporter "nginx" do
+  port 9113
+  options "--nginx.scrape-uri=http://localhost:8050/nginx_status"
+end
+
+template "/usr/local/bin/nginx-old-cache-cleanup" do
+  source "nginx-old-cache-cleanup.erb"
+  owner "root"
+  group "root"
+  mode "755"
+end
+
+cron_d "nginx-old-cache-cleanup" do
+  minute "15"
+  hour "23"
+  user "www-data"
+  command "/usr/bin/timeout 6h /usr/local/bin/nginx-old-cache-cleanup"
 end

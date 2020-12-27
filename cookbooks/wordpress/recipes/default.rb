@@ -17,16 +17,20 @@
 # limitations under the License.
 #
 
+include_recipe "accounts"
 include_recipe "apache"
+include_recipe "fail2ban"
+include_recipe "git"
 include_recipe "mysql"
+include_recipe "php::fpm"
 
 package %w[
   subversion
-  php
   php-mysql
 ]
 
-apache_module "php7.2"
+apache_module "proxy"
+apache_module "proxy_fcgi"
 apache_module "rewrite"
 
 fail2ban_filter "wordpress" do

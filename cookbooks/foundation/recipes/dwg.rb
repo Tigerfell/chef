@@ -25,6 +25,7 @@ mediawiki_site "dwg.osmfoundation.org" do
   sitename "OSMF Data Working Group Wiki"
   metanamespace "OSMFDWG"
   directory "/srv/dwg.osmfoundation.org"
+  fpm_prometheus_port 11002
   database_name "dwg-wiki"
   database_user "dwg-wikiuser"
   database_password passwords["dwg"]["database"]
@@ -36,10 +37,11 @@ mediawiki_site "dwg.osmfoundation.org" do
   private_site true
   recaptcha_public_key "6LflIQATAAAAAMXyDWpba-FgipVzE-aGF4HIR59N"
   recaptcha_private_key passwords["dwg"]["recaptcha"]
+  version "1.34"
 end
 
 cookbook_file "/srv/dwg.osmfoundation.org/Wiki.png" do
   owner node[:mediawiki][:user]
   group node[:mediawiki][:group]
-  mode 0o644
+  mode "644"
 end

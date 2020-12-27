@@ -19,13 +19,13 @@
 
 default_action :create
 
-property :site, :kind_of => String, :name_attribute => true
+property :site, :kind_of => String, :name_property => true
 property :aliases, :kind_of => [String, Array]
 property :directory, :kind_of => String
-property :version, :kind_of => String, :default => "1.33"
+property :version, :kind_of => String, :default => "1.35"
 property :database_name, :kind_of => String, :required => true
-property :database_user, :kind_of => String, :required => true
-property :database_password, :kind_of => String, :required => true
+property :database_user, :kind_of => String, :required => [:create, :update]
+property :database_password, :kind_of => String, :required => [:create, :update]
 property :sitename, :kind_of => String, :default => "OpenStreetMap Wiki"
 property :metanamespace, :kind_of => String, :default => "OpenStreetMap"
 property :logo, :kind_of => String, :default => "$wgStylePath/common/images/wiki.png"
@@ -37,21 +37,27 @@ property :skin, :kind_of => String, :default => "vector"
 property :site_notice, :kind_of => [String, TrueClass, FalseClass], :default => false
 property :site_readonly, :kind_of => [String, TrueClass, FalseClass], :default => false
 property :admin_user, :kind_of => String, :default => "Admin"
-property :admin_password, :kind_of => String, :required => true
+property :admin_password, :kind_of => String, :required => [:create]
 property :private_accounts, :kind_of => [TrueClass, FalseClass], :default => false
 property :private_site, :kind_of => [TrueClass, FalseClass], :default => false
 property :recaptcha_public_key, :kind_of => String
 property :recaptcha_private_key, :kind_of => String
 property :extra_file_extensions, :kind_of => [String, Array], :default => []
+property :fpm_max_children, :kind_of => Integer, :default => 5
+property :fpm_start_servers, :kind_of => Integer, :default => 2
+property :fpm_min_spare_servers, :kind_of => Integer, :default => 1
+property :fpm_max_spare_servers, :kind_of => Integer, :default => 3
+property :fpm_request_terminate_timeout, :kind_of => Integer, :default => 300
+property :fpm_prometheus_port, :kind_of => Integer
 property :reload_apache, :kind_of => [TrueClass, FalseClass], :default => true
 
 action :create do
-  node.normal_unless[:mediawiki][:sites][new_resource.site] = {}
+  node.default[:mediawiki][:sites][new_resource.site] = {
+    :directory => site_directory,
+    :version => new_resource.version
+  }
 
-  node.normal[:mediawiki][:sites][new_resource.site][:directory] = site_directory
-  node.normal[:mediawiki][:sites][new_resource.site][:version] = new_resource.version
-
-  node.normal_unless[:mediawiki][:sites][new_resource.site][:wgSecretKey] = SecureRandom.base64(48)
+  secret_key = persistent_token("mediawiki", new_resource.site, "wgSecretKey")
 
   mysql_user "#{new_resource.database_user}@localhost" do
     password new_resource.database_password
@@ -94,21 +100,22 @@ action :create do
   declare_resource :directory, site_directory do
     owner node[:mediawiki][:user]
     group node[:mediawiki][:group]
-    mode 0o775
+    mode "775"
   end
 
   declare_resource :directory, mediawiki_directory do
     owner node[:mediawiki][:user]
     group node[:mediawiki][:group]
-    mode 0o775
+    mode "775"
   end
 
   mediawiki_reference = "REL#{new_resource.version}".tr(".", "_")
 
   git mediawiki_directory do
     action :sync
-    repository "https://gerrit.wikimedia.org/r/p/mediawiki/core.git"
+    repository "https://gerrit.wikimedia.org/r/mediawiki/core.git"
     revision mediawiki_reference
+    depth 1
     user node[:mediawiki][:user]
     group node[:mediawiki][:group]
     notifies :run, "execute[#{mediawiki_directory}/composer.json]", :immediately
@@ -122,6 +129,7 @@ action :create do
     cwd mediawiki_directory
     user node[:mediawiki][:user]
     group node[:mediawiki][:group]
+    environment "COMPOSER_HOME" => site_directory
   end
 
   template "#{mediawiki_directory}/composer.local.json" do
@@ -129,7 +137,7 @@ action :create do
     source "composer.local.json.erb"
     owner node[:mediawiki][:user]
     group node[:mediawiki][:group]
-    mode 0o664
+    mode "664"
   end
 
   # Safety catch if git doesn't update but install.php hasn't run
@@ -146,19 +154,19 @@ action :create do
   declare_resource :directory, "#{mediawiki_directory}/images" do
     owner "www-data"
     group node[:mediawiki][:group]
-    mode 0o775
+    mode "775"
   end
 
   declare_resource :directory, "#{mediawiki_directory}/cache" do
     owner "www-data"
     group node[:mediawiki][:group]
-    mode 0o775
+    mode "775"
   end
 
   declare_resource :directory, "#{mediawiki_directory}/LocalSettings.d" do
     user node[:mediawiki][:user]
     group node[:mediawiki][:group]
-    mode 0o775
+    mode "775"
   end
 
   template "#{mediawiki_directory}/LocalSettings.php" do
@@ -166,22 +174,59 @@ action :create do
     source "LocalSettings.php.erb"
     owner node[:mediawiki][:user]
     group node[:mediawiki][:group]
-    mode 0o664
+    mode "664"
     variables :name => new_resource.site,
               :directory => mediawiki_directory,
               :database_params => database_params,
-              :mediawiki => mediawiki_params
+              :mediawiki => mediawiki_params,
+              :secret_key => secret_key
     notifies :run, "execute[#{mediawiki_directory}/maintenance/update.php]"
   end
 
-  template "/etc/cron.d/mediawiki-#{cron_name}" do
-    cookbook "mediawiki"
-    source "mediawiki.cron.erb"
-    owner "root"
-    group "root"
-    mode 0o644
-    variables :name => new_resource.site, :directory => site_directory,
-              :user => node[:mediawiki][:user]
+  cron_d "mediawiki-#{cron_name}-sitemap" do
+    comment "Generate sitemap.xml daily"
+    minute "30"
+    hour "0"
+    user node[:mediawiki][:user]
+    command "/usr/bin/nice /usr/bin/php -d memory_limit=2048M -d error_reporting=22517 #{site_directory}/w/maintenance/generateSitemap.php --server=https://#{new_resource.site} --urlpath=https://#{new_resource.site}/ --fspath=#{site_directory} --quiet --skip-redirects"
+  end
+
+  cron_d "mediawiki-#{cron_name}-jobs" do
+    comment "Run mediawiki jobs"
+    minute "*/3"
+    user node[:mediawiki][:user]
+    command "/usr/bin/nice /usr/bin/php -d memory_limit=2048M -d error_reporting=22517 #{site_directory}/w/maintenance/runJobs.php --server=https://#{new_resource.site} --maxtime=160 --memory-limit=2048M --procs=8 --quiet"
+  end
+
+  cron_d "mediawiki-#{cron_name}-email-jobs" do
+    comment "Run mediawiki email jobs"
+    user node[:mediawiki][:user]
+    command "/usr/bin/nice /usr/bin/php -d memory_limit=2048M -d error_reporting=22517 #{site_directory}/w/maintenance/runJobs.php --server=https://#{new_resource.site} --maxtime=30 --type=enotifNotify --memory-limit=2048M --procs=4 --quiet"
+  end
+
+  cron_d "mediawiki-#{cron_name}-refresh-links" do
+    comment "Run mediawiki refresh links table weekly"
+    minute "5"
+    hour "0"
+    weekday "0"
+    user node[:mediawiki][:user]
+    command "/usr/bin/nice /usr/bin/php -d memory_limit=2048M -d error_reporting=22517 #{site_directory}/w/maintenance/refreshLinks.php --server=https://#{new_resource.site} --memory-limit=2048M --quiet"
+  end
+
+  cron_d "mediawiki-#{cron_name}-cleanup-gs" do
+    comment "Clean up imagemagick garbage"
+    minute "10"
+    hour "2"
+    user node[:mediawiki][:user]
+    command "/usr/bin/find /tmp/ -maxdepth 1 -type f -user www-data -mmin +90 -name 'gs_*' -delete"
+  end
+
+  cron_d "mediawiki-#{cron_name}-cleanup-magick" do
+    comment "Clean up imagemagick garbage"
+    minute "20"
+    hour "2"
+    user node[:mediawiki][:user]
+    command "/usr/bin/find /tmp/ -maxdepth 1 -type f -user www-data -mmin +90 -name 'magick-*' -delete"
   end
 
   template "/etc/cron.daily/mediawiki-#{cron_name}-backup" do
@@ -189,7 +234,7 @@ action :create do
     source "mediawiki-backup.cron.erb"
     owner "root"
     group "root"
-    mode 0o700
+    mode "700"
     variables :name => new_resource.site,
               :directory => site_directory,
               :database_params => database_params
@@ -359,16 +404,6 @@ action :create do
     update_site false
   end
 
-  # LocalisationUpdate Update Cron
-  # template "/etc/cron.d/mediawiki-#{name}-LocalisationUpdate" do
-  #   cookbook "mediawiki"
-  #   source "mediawiki-LocalisationUpdate.cron.erb"
-  #   owner "root"
-  #   group "root"
-  #   mode 0755
-  #   variables :name => name, :directory => site_directory, :user => node[:mediawiki][:user]
-  # end
-
   # mediawiki_extension "Translate" do
   #   site new_resource.site
   #   template "mw-ext-Translate.inc.php.erb"
@@ -418,7 +453,14 @@ action :create do
   mediawiki_extension "osmtaginfo" do
     site new_resource.site
     template "mw-ext-osmtaginfo.inc.php.erb"
-    repository "git://github.com/Firefishy/osmtaginfo.git"
+    repository "https://github.com/Firefishy/osmtaginfo.git"
+    tag "live"
+    update_site false
+  end
+
+  mediawiki_extension "OSMCALWikiWidget" do
+    site new_resource.site
+    repository "https://github.com/thomersch/OSMCALWikiWidget.git"
     tag "live"
     update_site false
   end
@@ -426,17 +468,15 @@ action :create do
   mediawiki_extension "SimpleMap" do
     site new_resource.site
     template "mw-ext-SimpleMap.inc.php.erb"
-    repository "git://github.com/Firefishy/SimpleMap.git"
+    repository "https://github.com/Firefishy/SimpleMap.git"
     tag "live"
     update_site false
   end
 
   mediawiki_extension "SlippyMap" do
     site new_resource.site
-    template "mw-ext-SlippyMap.inc.php.erb"
-    repository "git://github.com/Firefishy/SlippyMap.git"
-    tag "live"
     update_site false
+    action :delete
   end
 
   mediawiki_extension "Mantle" do
@@ -466,7 +506,7 @@ action :create do
     cookbook "mediawiki"
     owner node[:mediawiki][:user]
     group node[:mediawiki][:group]
-    mode 0o644
+    mode "644"
     backup false
   end
 
@@ -474,7 +514,7 @@ action :create do
     cookbook "mediawiki"
     owner node[:mediawiki][:user]
     group node[:mediawiki][:group]
-    mode 0o644
+    mode "644"
     backup false
   end
 
@@ -482,12 +522,26 @@ action :create do
     cookbook "mediawiki"
     owner node[:mediawiki][:user]
     group node[:mediawiki][:group]
-    mode 0o644
+    mode "644"
     backup false
   end
 
   ssl_certificate new_resource.site do
     domains [new_resource.site] + Array(new_resource.aliases)
+  end
+
+  php_fpm new_resource.site do
+    pm_max_children new_resource.fpm_max_children
+    pm_start_servers new_resource.fpm_start_servers
+    pm_min_spare_servers new_resource.fpm_min_spare_servers
+    pm_max_spare_servers new_resource.fpm_max_spare_servers
+    request_terminate_timeout new_resource.fpm_request_terminate_timeout
+    php_admin_values "open_basedir" => "#{site_directory}/:/usr/share/php/:/dev/null:/tmp/"
+    php_values "memory_limit" => "500M",
+               "max_execution_time" => "240",
+               "upload_max_filesize" => "70M",
+               "post_max_size" => "100M"
+    prometheus_port new_resource.fpm_prometheus_port
   end
 
   apache_site new_resource.site do
@@ -517,7 +571,7 @@ action :update do
     source "LocalSettings.php.erb"
     owner node[:mediawiki][:user]
     group node[:mediawiki][:group]
-    mode 0o664
+    mode "664"
     variables :name => new_resource.site,
               :directory => mediawiki_directory,
               :database_params => database_params,
@@ -555,6 +609,8 @@ action :delete do
 end
 
 action_class do
+  include Chef::Mixin::PersistentToken
+
   def site_directory
     new_resource.directory || "/srv/#{new_resource.site}"
   end

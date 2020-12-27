@@ -58,7 +58,7 @@ supybot.networks.oftc.password:
 #
 # Default value: 
 ###
-supybot.networks.oftc.servers: irc.oftc.net:6667
+supybot.networks.oftc.servers: irc.oftc.net:6697
 
 ###
 # Determines what channels the bot will join only on oftc.
@@ -80,7 +80,7 @@ supybot.networks.oftc.channels.key:
 #
 # Default value: False
 ###
-supybot.networks.oftc.ssl: False
+supybot.networks.oftc.ssl: True
 
 ###
 # Determines how timestamps printed for human reading should be
@@ -638,6 +638,13 @@ supybot.directories.data: /var/lib/supybot/data
 supybot.directories.data.tmp: /var/lib/supybot/data/tmp
 
 ###
+# Determines what directory files of the web server (templates, custom images, ...) are put into.
+#
+# Default value: web
+###
+supybot.directories.data.web: /var/lib/supybot/data/web
+
+###
 # Determines what directory backup data is put into.
 #
 # Default value: backup
@@ -887,7 +894,6 @@ supybot.plugins.Services.NickServ: NickServ
 #
 # Default value: 
 ###
-supybot.plugins.Services.NickServ.password: <%= @passwords["nickserv"] %>
 supybot.plugins.Services.NickServ.password.osmbot: <%= @passwords["nickserv"] %>
 
 ###
@@ -1061,6 +1067,15 @@ supybot.databases.types.cdb: True
 # Default value: 0.5
 ###
 supybot.databases.types.cdb.maximumModifications: 0.5
+
+###
+# Determines whether server certificates will be verified, which
+# checks whether the server certificate is signed by a known certificate
+# authority, and aborts the connection if it is not.
+#
+# Default value: False
+###
+supybot.protocols.ssl.verifyCertificates: True
 
 ###
 # Determines what will be used as the default banmask style.

@@ -23,6 +23,10 @@
 require "ipaddr"
 require "yaml"
 
+keys = data_bag_item("networking", "keys")
+
+package "netplan.io"
+
 netplan = {
   "network" => {
     "version" => 2,
@@ -37,18 +41,21 @@ node[:networking][:interfaces].each do |name, interface|
   if interface[:interface]
     if interface[:role] && (role = node[:networking][:roles][interface[:role]])
       if role[interface[:family]]
-        node.normal[:networking][:interfaces][name][:prefix] = role[interface[:family]][:prefix]
-        node.normal[:networking][:interfaces][name][:gateway] = role[interface[:family]][:gateway]
+        node.default[:networking][:interfaces][name][:prefix] = role[interface[:family]][:prefix]
+        node.default[:networking][:interfaces][name][:gateway] = role[interface[:family]][:gateway]
+        node.default[:networking][:interfaces][name][:routes] = role[interface[:family]][:routes]
       end
 
-      node.normal[:networking][:interfaces][name][:metric] = role[:metric]
-      node.normal[:networking][:interfaces][name][:zone] = role[:zone]
+      node.default[:networking][:interfaces][name][:metric] = role[:metric]
+      node.default[:networking][:interfaces][name][:zone] = role[:zone]
     end
 
-    prefix = node[:networking][:interfaces][name][:prefix]
+    if interface[:address]
+      prefix = node[:networking][:interfaces][name][:prefix]
 
-    node.normal[:networking][:interfaces][name][:netmask] = (~IPAddr.new(interface[:address]).mask(0)).mask(prefix)
-    node.normal[:networking][:interfaces][name][:network] = IPAddr.new(interface[:address]).mask(prefix)
+      node.default[:networking][:interfaces][name][:netmask] = (~IPAddr.new(interface[:address]).mask(0)).mask(prefix)
+      node.default[:networking][:interfaces][name][:network] = IPAddr.new(interface[:address]).mask(prefix)
+    end
 
     interface = node[:networking][:interfaces][name]
 
@@ -74,7 +81,9 @@ node[:networking][:interfaces].each do |name, interface|
                    }
                  end
 
-    deviceplan["addresses"].push("#{interface[:address]}/#{prefix}")
+    if interface[:address]
+      deviceplan["addresses"].push("#{interface[:address]}/#{prefix}")
+    end
 
     if interface[:mtu]
       deviceplan["mtu"] = interface[:mtu]
@@ -124,6 +133,22 @@ node[:networking][:interfaces].each do |name, interface|
         )
       end
     end
+
+    if interface[:routes]
+      interface[:routes].each do |to, parameters|
+        next if parameters[:via] == interface[:address]
+
+        route = {
+          "to" => to
+        }
+
+        route["type"] = parameters[:type] if parameters[:type]
+        route["via"] = parameters[:via] if parameters[:via]
+        route["metric"] = parameters[:metric] if parameters[:metric]
+
+        deviceplan["routes"].push(route)
+      end
+    end
   else
     node.rm(:networking, :interfaces, name)
   end
@@ -152,7 +177,7 @@ end
 file "/etc/netplan/99-chef.yaml" do
   owner "root"
   group "root"
-  mode 0o644
+  mode "644"
   content YAML.dump(netplan)
 end
 
@@ -160,24 +185,143 @@ package "cloud-init" do
   action :purge
 end
 
-execute "hostname" do
-  action :nothing
-  command "/bin/hostname -F /etc/hostname"
+if node[:networking][:wireguard][:enabled]
+  wireguard_id = persistent_token("networking", "wireguard")
+
+  node.default[:networking][:wireguard][:address] = "fd43:e709:ea6d:1:#{wireguard_id[0, 4]}:#{wireguard_id[4, 4]}:#{wireguard_id[8, 4]}:#{wireguard_id[12, 4]}"
+
+  package "wireguard-tools" do
+    compile_time true
+  end
+
+  directory "/var/lib/systemd/wireguard" do
+    owner "root"
+    group "systemd-network"
+    mode "750"
+    compile_time true
+  end
+
+  file "/var/lib/systemd/wireguard/private.key" do
+    action :create_if_missing
+    owner "root"
+    group "systemd-network"
+    mode "640"
+    content %x(wg genkey)
+    compile_time true
+  end
+
+  node.default[:networking][:wireguard][:public_key] = %x(wg pubkey < /var/lib/systemd/wireguard/private.key).chomp
+
+  file "/var/lib/systemd/wireguard/preshared.key" do
+    action :create_if_missing
+    owner "root"
+    group "systemd-network"
+    mode "640"
+    content keys["wireguard"]
+  end
+
+  if node[:roles].include?("gateway")
+    search(:node, "roles:gateway") do |gateway|
+      next if gateway.name == node.name
+      next unless gateway[:networking][:wireguard] && gateway[:networking][:wireguard][:enabled]
+
+      allowed_ips = gateway.interfaces(:role => :internal).map do |interface|
+        "#{interface[:network]}/#{interface[:prefix]}"
+      end
+
+      node.default[:networking][:wireguard][:peers] << {
+        :public_key => gateway[:networking][:wireguard][:public_key],
+        :allowed_ips => allowed_ips,
+        :endpoint => "#{gateway.name}:51820"
+      }
+    end
+
+    search(:node, "roles:mail") do |server|
+      allowed_ips = server.interfaces(:role => :internal).map do |interface|
+        "#{interface[:network]}/#{interface[:prefix]}"
+      end
+
+      if server[:networking][:private_address]
+        allowed_ips << "#{server[:networking][:private_address]}/32"
+      end
+
+      node.default[:networking][:wireguard][:peers] << {
+        :public_key => server[:networking][:wireguard][:public_key],
+        :allowed_ips => allowed_ips,
+        :endpoint => "#{server.name}:51820"
+      }
+    end
+
+    node.default[:networking][:wireguard][:peers] << {
+      :public_key => "7Oj9ufNlgidyH/xDc+aHQKMjJPqTmD/ab13agMh6AxA=",
+      :allowed_ips => "10.0.16.1/32",
+      :endpoint => "gate.compton.nu:51820"
+    }
+  end
+
+  template "/etc/systemd/network/wireguard.netdev" do
+    source "wireguard.netdev.erb"
+    owner "root"
+    group "systemd-network"
+    mode "640"
+  end
+
+  template "/etc/systemd/network/wireguard.network" do
+    source "wireguard.network.erb"
+    owner "root"
+    group "root"
+    mode "644"
+  end
+
+  if node[:lsb][:release].to_f < 20.04
+    execute "ip-link-delete-wg0" do
+      action :nothing
+      command "ip link delete wg0"
+      subscribes :run, "template[/etc/systemd/network/wireguard.netdev]"
+      only_if { ::File.exist?("/sys/class/net/wg0") }
+    end
+
+    service "systemd-networkd" do
+      action :nothing
+      subscribes :restart, "template[/etc/systemd/network/wireguard.netdev]"
+      subscribes :restart, "template[/etc/systemd/network/wireguard.network]"
+      not_if { ENV.key?("TEST_KITCHEN") }
+    end
+  else
+    execute "networkctl-delete-wg0" do
+      action :nothing
+      command "networkctl delete wg0"
+      subscribes :run, "template[/etc/systemd/network/wireguard.netdev]"
+      only_if { ::File.exist?("/sys/class/net/wg0") }
+    end
+
+    execute "networkctl-reload" do
+      action :nothing
+      command "networkctl reload"
+      subscribes :run, "template[/etc/systemd/network/wireguard.netdev]"
+      subscribes :run, "template[/etc/systemd/network/wireguard.network]"
+      not_if { ENV.key?("TEST_KITCHEN") }
+    end
+  end
 end
 
-template "/etc/hostname" do
-  source "hostname.erb"
-  owner "root"
-  group "root"
-  mode 0o644
-  notifies :run, "execute[hostname]"
+ohai "reload-hostname" do
+  action :nothing
+  plugin "hostname"
+end
+
+execute "hostnamectl-set-hostname" do
+  command "hostnamectl set-hostname #{node[:networking][:hostname]}"
+  notifies :reload, "ohai[reload-hostname]"
+  not_if { ENV.key?("TEST_KITCHEN") || node[:hostnamectl][:static_hostname] == node[:networking][:hostname] }
 end
 
 template "/etc/hosts" do
   source "hosts.erb"
   owner "root"
   group "root"
-  mode 0o644
+  mode "644"
+  not_if { ENV["TEST_KITCHEN"] }
 end
 
 service "systemd-resolved" do
@@ -187,54 +331,25 @@ end
 directory "/etc/systemd/resolved.conf.d" do
   owner "root"
   group "root"
-  mode 0o755
+  mode "755"
 end
 
 template "/etc/systemd/resolved.conf.d/99-chef.conf" do
   source "resolved.conf.erb"
   owner "root"
   group "root"
-  mode 0o644
-  notifies :restart, "service[systemd-resolved]"
+  mode "644"
+  notifies :restart, "service[systemd-resolved]", :immediately
 end
 
-if node[:networking][:tcp_fastopen_key]
-  fastopen_keys = data_bag_item("networking", "fastopen")
-
-  node.normal[:sysctl][:tcp_fastopen] = {
-    :comment => "Set shared key for TCP fast open",
-    :parameters => {
-      "net.ipv4.tcp_fastopen_key" => fastopen_keys[node[:networking][:tcp_fastopen_key]]
-    }
-  }
-end
-
-node.interfaces(:role => :internal) do |interface|
-  if interface[:gateway] && interface[:gateway] != interface[:address]
-    search(:node, "networking_interfaces*address:#{interface[:gateway]}") do |gateway|
-      next unless gateway[:openvpn]
-
-      gateway[:openvpn][:tunnels].each_value do |tunnel|
-        if tunnel[:peer][:address]
-          route tunnel[:peer][:address] do
-            netmask "255.255.255.255"
-            gateway interface[:gateway]
-            device interface[:interface]
-          end
-        end
-
-        next unless tunnel[:peer][:networks]
-
-        tunnel[:peer][:networks].each do |network|
-          route network[:address] do
-            netmask network[:netmask]
-            gateway interface[:gateway]
-            device interface[:interface]
-          end
-        end
-      end
-    end
+if node[:filesystem][:by_mountpoint][:"/etc/resolv.conf"]
+  execute "umount-resolve-conf" do
+    command "umount -c /etc/resolv.conf"
   end
+end
+
+link "/etc/resolv.conf" do
+  to "../run/systemd/resolve/stub-resolv.conf"
 end
 
 zones = {}
@@ -257,7 +372,7 @@ template "/etc/default/shorewall" do
   source "shorewall-default.erb"
   owner "root"
   group "root"
-  mode 0o644
+  mode "644"
   notifies :restart, "service[shorewall]"
 end
 
@@ -265,7 +380,7 @@ template "/etc/shorewall/shorewall.conf" do
   source "shorewall.conf.erb"
   owner "root"
   group "root"
-  mode 0o644
+  mode "644"
   notifies :restart, "service[shorewall]"
 end
 
@@ -273,7 +388,7 @@ template "/etc/shorewall/zones" do
   source "shorewall-zones.erb"
   owner "root"
   group "root"
-  mode 0o644
+  mode "644"
   variables :type => "ipv4"
   notifies :restart, "service[shorewall]"
 end
@@ -282,7 +397,7 @@ template "/etc/shorewall/interfaces" do
   source "shorewall-interfaces.erb"
   owner "root"
   group "root"
-  mode 0o644
+  mode "644"
   notifies :restart, "service[shorewall]"
 end
 
@@ -290,7 +405,7 @@ template "/etc/shorewall/hosts" do
   source "shorewall-hosts.erb"
   owner "root"
   group "root"
-  mode 0o644
+  mode "644"
   variables :zones => zones
   notifies :restart, "service[shorewall]"
 end
@@ -299,7 +414,7 @@ template "/etc/shorewall/conntrack" do
   source "shorewall-conntrack.erb"
   owner "root"
   group "root"
-  mode 0o644
+  mode "644"
   notifies :restart, "service[shorewall]"
   only_if { node[:networking][:firewall][:raw] }
 end
@@ -308,7 +423,7 @@ template "/etc/shorewall/policy" do
   source "shorewall-policy.erb"
   owner "root"
   group "root"
-  mode 0o644
+  mode "644"
   notifies :restart, "service[shorewall]"
 end
 
@@ -316,22 +431,32 @@ template "/etc/shorewall/rules" do
   source "shorewall-rules.erb"
   owner "root"
   group "root"
-  mode 0o644
+  mode "644"
   variables :family => "inet"
   notifies :restart, "service[shorewall]"
 end
 
-service "shorewall" do
-  action [:enable, :start]
-  supports :restart => true
-  status_command "shorewall status"
+if node[:networking][:firewall][:enabled]
+  service "shorewall" do
+    action [:enable, :start]
+    supports :restart => true
+    status_command "shorewall status"
+    ignore_failure true
+  end
+else
+  service "shorewall" do
+    action [:disable, :stop]
+    supports :restart => true
+    status_command "shorewall status"
+    ignore_failure true
+  end
 end
 
 template "/etc/logrotate.d/shorewall" do
   source "logrotate.shorewall.erb"
   owner "root"
   group "root"
-  mode 0o644
+  mode "644"
   variables :name => "shorewall"
 end
 
@@ -345,14 +470,20 @@ firewall_rule "limit-icmp-echo" do
   rate_limit "s:1/sec:5"
 end
 
-%w[ucl ams bm].each do |zone|
-  firewall_rule "accept-openvpn-#{zone}" do
+if node[:networking][:wireguard][:enabled]
+  wireguard_source = if node[:roles].include?("gateway")
+                       "net"
+                     else
+                       "osm"
+                     end
+
+  firewall_rule "accept-wireguard" do
     action :accept
-    source zone
+    source wireguard_source
     dest "fw"
     proto "udp"
-    dest_ports "1194:1197"
-    source_ports "1194:1197"
+    dest_ports "51820"
+    source_ports "51820"
   end
 end
 
@@ -361,7 +492,7 @@ if node[:roles].include?("gateway")
     source "shorewall-masq.erb"
     owner "root"
     group "root"
-    mode 0o644
+    mode "644"
     notifies :restart, "service[shorewall]"
   end
 else
@@ -378,7 +509,7 @@ unless node.interfaces(:family => :inet6).empty?
     source "shorewall-default.erb"
     owner "root"
     group "root"
-    mode 0o644
+    mode "644"
     notifies :restart, "service[shorewall6]"
   end
 
@@ -386,7 +517,7 @@ unless node.interfaces(:family => :inet6).empty?
     source "shorewall6.conf.erb"
     owner "root"
     group "root"
-    mode 0o644
+    mode "644"
     notifies :restart, "service[shorewall6]"
   end
 
@@ -394,7 +525,7 @@ unless node.interfaces(:family => :inet6).empty?
     source "shorewall-zones.erb"
     owner "root"
     group "root"
-    mode 0o644
+    mode "644"
     variables :type => "ipv6"
     notifies :restart, "service[shorewall6]"
   end
@@ -403,7 +534,7 @@ unless node.interfaces(:family => :inet6).empty?
     source "shorewall6-interfaces.erb"
     owner "root"
     group "root"
-    mode 0o644
+    mode "644"
     notifies :restart, "service[shorewall6]"
   end
 
@@ -411,7 +542,7 @@ unless node.interfaces(:family => :inet6).empty?
     source "shorewall6-hosts.erb"
     owner "root"
     group "root"
-    mode 0o644
+    mode "644"
     variables :zones => zones
     notifies :restart, "service[shorewall6]"
   end
@@ -420,7 +551,7 @@ unless node.interfaces(:family => :inet6).empty?
     source "shorewall-conntrack.erb"
     owner "root"
     group "root"
-    mode 0o644
+    mode "644"
     notifies :restart, "service[shorewall6]"
     only_if { node[:networking][:firewall][:raw] }
   end
@@ -429,7 +560,7 @@ unless node.interfaces(:family => :inet6).empty?
     source "shorewall-policy.erb"
     owner "root"
     group "root"
-    mode 0o644
+    mode "644"
     notifies :restart, "service[shorewall6]"
   end
 
@@ -437,22 +568,32 @@ unless node.interfaces(:family => :inet6).empty?
     source "shorewall-rules.erb"
     owner "root"
     group "root"
-    mode 0o644
+    mode "644"
     variables :family => "inet6"
     notifies :restart, "service[shorewall6]"
   end
 
-  service "shorewall6" do
-    action [:enable, :start]
-    supports :restart => true
-    status_command "shorewall6 status"
+  if node[:networking][:firewall][:enabled]
+    service "shorewall6" do
+      action [:enable, :start]
+      supports :restart => true
+      status_command "shorewall6 status"
+      ignore_failure true
+    end
+  else
+    service "shorewall6" do
+      action [:disable, :stop]
+      supports :restart => true
+      status_command "shorewall6 status"
+      ignore_failure true
+    end
   end
 
   template "/etc/logrotate.d/shorewall6" do
     source "logrotate.shorewall.erb"
     owner "root"
     group "root"
-    mode 0o644
+    mode "644"
     variables :name => "shorewall6"
   end
 

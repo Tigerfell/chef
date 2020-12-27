@@ -8,15 +8,7 @@ default_attributes(
     }
   },
   :hosted_by => "University of Zaragoza",
-  :location => "Zaragoza, Spain",
-  :networking => {
-    :nameservers => ["155.210.12.9", "155.210.3.12"],
-    :roles => {
-      :external => {
-        :zone => "uz"
-      }
-    }
-  }
+  :location => "Zaragoza, Spain"
 )
 
 override_attributes(

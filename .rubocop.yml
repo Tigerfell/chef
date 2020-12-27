@@ -1,16 +1,22 @@
 inherit_from: .rubocop_todo.yml
 
 AllCops:
-  TargetRubyVersion: 2.3
+  TargetRubyVersion: 2.7
+
+ChefModernize/IncludingAptDefaultRecipe:
+  Enabled: false
 
 Layout/ExtraSpacing:
   AllowForAlignment: true
 
-Layout/IndentHeredoc:
-  EnforcedStyle: squiggly
+Layout/HeredocIndentation:
+  Enabled: true
 
-Naming/UncommunicativeMethodParamName:
+Naming/MethodParameterName:
   Enabled: false
+
+Style/CommandLiteral:
+  EnforcedStyle: percent_x
 
 Style/HashSyntax:
   EnforcedStyle: hash_rockets

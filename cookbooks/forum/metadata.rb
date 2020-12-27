@@ -6,6 +6,8 @@ description       "Installs and configures a roundup server"
 
 version           "1.0.0"
 supports          "ubuntu"
+depends           "accounts"
 depends           "apache"
 depends           "git"
 depends           "mysql"
+depends           "php"

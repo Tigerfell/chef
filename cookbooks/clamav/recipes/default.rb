@@ -27,7 +27,17 @@ template "/etc/clamav-unofficial-sigs.conf.d/50-chef.conf" do
   source "clamav-unofficial-sigs.conf.erb"
   owner "root"
   group "root"
-  mode 0o644
+  mode "644"
+end
+
+execute "freshclam" do
+  command "/usr/bin/freshclam"
+  user "clamav"
+  group "clamav"
+  not_if do
+    ::File.exist?("/var/lib/clamav/daily.cld") ||
+      ::File.exist?("/var/lib/clamav/daily.cvd")
+  end
 end
 
 service "clamav-daemon" do

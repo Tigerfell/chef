@@ -21,8 +21,8 @@ default_attributes(
       ]
     }
   },
-  :networking => {
-    :tcp_fastopen_key => "www"
+  :memcached => {
+    :memory_limit => 4096
   },
   :passenger => {
     :max_pool_size => 50

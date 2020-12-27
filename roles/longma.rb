@@ -7,6 +7,9 @@ default_attributes(
       :root => "ceasar"
     }
   },
+  :hardware => {
+    :shm_size => "20g"
+  },
   :networking => {
     :interfaces => {
       :external_ipv4 => {
@@ -28,16 +31,25 @@ default_attributes(
     }
   },
   :squid => {
-    :cache_mem => "12500 MB",
-    :cache_dir => "coss /store/squid/coss-01 128000 block-size=8192 max-size=262144 membufs=80"
+    :version => 4,
+    :cache_mem => "16384 MB",
+    :cache_dir => [
+      "rock /store.new-san/squid/rock-4096 20000 swap-timeout=200 slot-size=4096 max-size=3996",
+      "rock /store.new-san/squid/rock-8192 25000 swap-timeout=200 slot-size=8192 min-size=3997 max-size=8092",
+      "rock /store.new-san/squid/rock-16384 35000 swap-timeout=200 slot-size=16384 min-size=8093 max-size=16284",
+      "rock /store.new-san/squid/rock-32768 45000 swap-timeout=200 slot-size=32768 min-size=16285 max-size=262144"
+    ]
+  },
+  :nginx => {
+    :cache => {
+      :proxy => {
+        :directory => "/store.new-san/nginx-cache/proxy-cache",
+        :max_size => "65536M"
+      }
+    }
   },
   :tilecache => {
-    :tile_parent => "hsinchu.render.openstreetmap.org",
-    :tile_siblings => [
-      "balerion.openstreetmap.org",
-      "waima.openstreetmap.org",
-      "tuatara.openstreetmap.org"
-    ]
+    :tile_parent => "hsinchu.render.openstreetmap.org"
   }
 )
 

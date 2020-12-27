@@ -67,6 +67,8 @@ default_attributes(
       :mhohmann => { :status => :user },
       :enelson => { :status => :user },
       :gregrs => { :status => :user },
+      :stereo => { :status => :user },
+      :dmlu => { :status => :user },
       :ooc => {
         :status => :role,
         :members => [:tomh, :blackadder, :timsc, :ollie]
@@ -95,40 +97,41 @@ default_attributes(
       :max_connections_per_child => 10000
     }
   },
-  :apt => {
-    :sources => ["postgresql"]
-  },
   :dev => {
     :rails => {
       :master => {
         :repository => "https://git.openstreetmap.org/public/rails.git",
         :revision => "master",
-        :cgimap_repository => "git://github.com/zerebubuth/openstreetmap-cgimap.git",
+        :cgimap_repository => "https://github.com/zerebubuth/openstreetmap-cgimap.git",
         :cgimap_revision => "master",
         :aliases => ["api06.dev.openstreetmap.org"]
       },
       :tomh => {
-        :repository => "git://github.com/tomhughes/openstreetmap-website.git",
+        :repository => "https://github.com/tomhughes/openstreetmap-website.git",
         :revision => "next"
       },
       :comments => {
-        :repository => "git://github.com/ukasiu/openstreetmap-website.git",
+        :repository => "https://github.com/ukasiu/openstreetmap-website.git",
         :revision => "comments_list"
       },
       :locale => {
-        :repository => "git://github.com/tomhughes/openstreetmap-website.git",
+        :repository => "https://github.com/tomhughes/openstreetmap-website.git",
         :revision => "locale"
+      },
+      :microcosms => {
+        :repository => "https://github.com/openbrian/osm-microcosms.git",
+        :revision => "microcosms"
       },
       :upload => {
         :repository => "https://git.openstreetmap.org/public/rails.git",
         :revision => "master",
-        :cgimap_repository => "git://github.com/zerebubuth/openstreetmap-cgimap.git",
+        :cgimap_repository => "https://github.com/zerebubuth/openstreetmap-cgimap.git",
         :cgimap_revision => "feature/bulk_upload"
       }
     }
   },
   :postgresql => {
-    :versions => ["9.1", "9.5"],
+    :versions => ["12"],
     :settings => {
       :defaults => {
         :shared_buffers => "1GB",
@@ -137,11 +140,10 @@ default_attributes(
         :max_stack_depth => "4MB",
         :effective_cache_size => "4GB"
       },
-      "9.1" => {
-        :port => "5433"
-      },
-      "9.5" => {
-        :port => "5432"
+      "12" => {
+        :port => "5432",
+        :wal_level => "logical",
+        :max_replication_slots => "1"
       }
     }
   },

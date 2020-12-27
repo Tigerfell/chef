@@ -36,6 +36,7 @@ package %w[
   lvm2
   rsyslog
   cron
+  locales-all
 ]
 
 service "rsyslog" do
@@ -48,16 +49,6 @@ package %w[mlocate nano whoopsie] do
   action :purge
 end
 
-# Remove screen-cleanup left behind by old release.
-file "/etc/init.d/screen-cleanup" do
-  action :delete
-end
-
-# Cleanup unused file
-file "/etc/systemd/system/cron.service.d/chef.conf" do
-  action :delete
-end
-
 # Configure cron to run in the local timezone of the machine
 systemd_service "cron-timezone" do
   service "cron"
@@ -67,7 +58,27 @@ systemd_service "cron-timezone" do
   only_if { node[:timezone] }
 end
 
+# Configure cron with lower cpu and IO priority
+if node[:tools][:cron][:load]
+  systemd_service "cron-load" do
+    service "cron"
+    dropin "load"
+    nice node[:tools][:cron][:load][:nice]
+    io_scheduling_class node[:tools][:cron][:load][:io_scheduling_class]
+    io_scheduling_priority node[:tools][:cron][:load][:io_scheduling_priority]
+    notifies :restart, "service[cron]"
+  end
+end
+
 # Make sure cron is running
 service "cron" do
   action [:enable, :start]
+end
+
+# Ubuntu MOTD adverts be-gone
+template "/etc/default/motd-news" do
+  source "motd-news.erb"
+  owner "root"
+  group "root"
+  mode "644"
 end

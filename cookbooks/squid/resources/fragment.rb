@@ -19,8 +19,8 @@
 
 default_action :create
 
-property :fragment, :kind_of => String, :name_attribute => true
-property :template, :kind_of => String, :required => true
+property :fragment, :kind_of => String, :name_property => true
+property :template, :kind_of => String, :required => [:create]
 property :variables, :kind_of => Hash, :default => {}
 
 action :create do
@@ -28,7 +28,7 @@ action :create do
     source new_resource.template
     owner "root"
     group "root"
-    mode 0o644
+    mode "644"
     variables new_resource.variables
   end
 end

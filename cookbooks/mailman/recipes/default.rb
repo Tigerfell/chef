@@ -21,16 +21,27 @@ require "securerandom"
 
 include_recipe "apache"
 
-package "mailman"
+package %w[
+  locales-all
+  mailman
+]
 
-node.normal_unless[:mailman][:subscribe_form_secret] = SecureRandom.base64(48)
+subscribe_form_secret = persistent_token("mailman", "subscribe_form_secret")
 
 template "/etc/mailman/mm_cfg.py" do
   source "mm_cfg.py.erb"
   user "root"
   group "root"
-  mode 0o644
+  mode "644"
+  variables :subscribe_form_secret => subscribe_form_secret
   notifies :restart, "service[mailman]"
+end
+
+execute "newlist" do
+  command "newlist -q mailman mailman@example.com mailman"
+  user "root"
+  group "root"
+  not_if { ::File.exist?("/var/lib/mailman/lists/mailman/") }
 end
 
 service "mailman" do
@@ -56,5 +67,5 @@ template "/etc/cron.daily/lists-backup" do
   source "backup.cron.erb"
   owner "root"
   group "root"
-  mode 0o755
+  mode "755"
 end

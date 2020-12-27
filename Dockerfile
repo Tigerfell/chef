@@ -1,14 +1,24 @@
-FROM ruby:2.4
+# Basic Dockerfile to run cookstyle linting
+# run: docker build -t chef-test .
+FROM ruby:2.7-alpine as build
 
+# Add Gem build requirements
+RUN apk add --no-cache build-base
+
+# Create app directory
 WORKDIR /app
 
-RUN apt-get update \
-	&& apt-get install -y --no-install-recommends libssl1.0-dev
+# Add Gemfile and Gemfile.lock
+ADD Gemfile* ./
 
-ADD Gemfile* /app/
-RUN gem install bundler && bundle config build.nokogiri --use-system-libraries && bundle install --jobs 4 --retry 5
+# Install Gems
+RUN gem install bundler \
+    && bundle config build.nokogiri --use-system-libraries \
+    && bundle config --global jobs $(nproc) \
+    && bundle install
 
-ADD . /app/
+# Add repo
+ADD . .
 
-RUN bundle exec rubocop -f fuubar
-RUN bundle exec foodcritic -f any cookbooks
+# Run linting
+RUN bundle exec cookstyle -f fuubar

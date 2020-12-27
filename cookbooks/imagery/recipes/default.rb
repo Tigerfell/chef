@@ -21,10 +21,8 @@ include_recipe "nginx"
 include_recipe "git"
 
 # Imagery gdal Requirements
-package %w[
-  gdal-bin
-  python-gdal
-]
+package "gdal-bin"
+# python-gdal - disable while broken in gis unstable repo
 
 # Imagery MapServer + Mapcache Requirements
 package %w[
@@ -51,26 +49,26 @@ package %w[
 directory "/srv/imagery/mapserver" do
   owner "root"
   group "root"
-  mode 0o755
+  mode "755"
   recursive true
 end
 
 directory "/srv/imagery/common" do
   owner "root"
   group "root"
-  mode 0o755
+  mode "755"
   recursive true
 end
 
 directory "/srv/imagery/common/ostn02-ntv2-data" do
   owner "root"
   group "root"
-  mode 0o755
+  mode "755"
 end
 
 remote_file "#{Chef::Config[:file_cache_path]}/ostn02-ntv2-data.zip" do
   source "https://www.ordnancesurvey.co.uk/docs/gps/ostn02-ntv2-data.zip"
-  not_if { File.exist?("/srv/imagery/common/ostn02-ntv2-data/OSTN02_NTv2.gsb") }
+  not_if { ::File.exist?("/srv/imagery/common/ostn02-ntv2-data/OSTN02_NTv2.gsb") }
 end
 
 execute "unzip-ostn02-ntv2-data" do
@@ -78,13 +76,12 @@ execute "unzip-ostn02-ntv2-data" do
   cwd "/srv/imagery/common/ostn02-ntv2-data"
   user "root"
   group "root"
-  not_if { File.exist?("/srv/imagery/common/ostn02-ntv2-data/OSTN02_NTv2.gsb") }
+  not_if { ::File.exist?("/srv/imagery/common/ostn02-ntv2-data/OSTN02_NTv2.gsb") }
 end
 
 nginx_site "default" do
   template "nginx_default.conf.erb"
   directory "/srv/imagery/default"
-  restart_nginx false
 end
 
 systemd_tmpfile "/run/mapserver-fastcgi" do

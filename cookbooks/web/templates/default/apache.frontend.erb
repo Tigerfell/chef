@@ -12,7 +12,6 @@
   # Enable SSL
   #
   SSLEngine on
-  SSLProxyEngine on
   SSLCertificateFile /etc/ssl/certs/www.openstreetmap.org.pem
   SSLCertificateKeyFile /etc/ssl/private/www.openstreetmap.org.key
 
@@ -58,16 +57,6 @@
   RewriteRule . - [F,L]
 
   #
-  # Block requests for the old 404 map tile
-  # and force cache headers on response
-  #
-  <Location /openlayers/img/404.png>
-    Header always set Cache-Control "public, max-age=31536000, immutable"
-    Header always set Expires "Tue, 19 Jan 2038 03:14:07 GMT"
-    RewriteRule ^ - [G,L]
-  </Location>
-
-  #
   # Block attempts to access old API versions
   #
   RewriteRule ^/api/0.[12345]/ - [G,L]
@@ -83,6 +72,13 @@
   # Block a changeset that seems to lock things up
   #
   RewriteRule ^/api/0.6/changeset/6823497/download$ - [F,L]
+
+  #
+  # Ignore Vicon Valerus "online" status pings
+  # https://gist.github.com/Firefishy/86ed5b86991b225179b54bbafbcd769e
+  #
+  RewriteCond "%{QUERY_STRING}" "^q=abcde&t=20"
+  RewriteRule "^/api/0\.6/notes/search$" - [R=204,L]
 
   #
   # Force special MIME type for crossdomain.xml files
@@ -122,7 +118,11 @@
     ExpiresDefault "access plus 10 years"
   </Location>
   <Location /openlayers/>
-    ExpiresDefault "access plus 7 days"
+    Header unset Last-Modified
+    FileETag Size
+
+    Header always set Cache-Control "public, max-age=31536000, immutable"
+    Header always set Expires "Tue, 19 Jan 2038 03:14:07 GMT"
   </Location>
 
   #
@@ -138,44 +138,30 @@
   SetEnv OPENSTREETMAP_STATUS <%= @status %>
   SetEnv SECRET_KEY_BASE <%= @secret_key_base %>
   Alias /favicon.ico <%= node[:web][:base_directory] %>/rails/app/assets/favicons/favicon.ico
-  Alias /openlayers <%= node[:web][:base_directory] %>/rails/vendor/assets/openlayers
+  Alias /openlayers <%= node[:web][:base_directory] %>/static/openlayers
   Alias /stats /store/rails/stats
   Alias /user/image /store/rails/user/image
   Alias /attachments /store/rails/attachments
 
   #
-  # Preserve the host name when forwarding to the proxy
+  # Pass authentication related headers to cgimap
   #
-  ProxyPreserveHost on
+  <Location />
+    CGIPassAuth On
+  </Location>
 
   #
-  # Set a long timeout - changeset uploads can take a long time
+  # Pass supported calls to cgimap
   #
-  ProxyTimeout 3600
-
-  #
-  # Allow all proxy requests
-  #
-  <Proxy *>
-    Require all granted
-  </Proxy>
-
-  #
-  # Pass some other API calls to the backends via a load balancer
-  #
-  ProxyPass /api/0.6/map balancer://backend/api/0.6/map
-  ProxyPass /api/0.6/tracepoints balancer://backend/api/0.6/tracepoints
-  ProxyPass /api/0.6/amf/read balancer://backend/api/0.6/amf/read
-  ProxyPass /api/0.6/swf/trackpoints balancer://backend/api/0.6/swf/trackpoints
-  ProxyPassMatch ^(/api/0\.6/changeset/[0-9]+)$ balancer://backend$1
-  ProxyPassMatch ^(/api/0\.6/changeset/[0-9]+/upload)$ balancer://amsterdam$1
-  ProxyPassMatch ^(/api/0\.6/changeset/[0-9]+/download)$ balancer://backend$1
-  ProxyPassMatch ^(/api/0\.6/(node|way|relation)/[0-9]+)$ balancer://backend$1
-  ProxyPassMatch ^(/api/0\.6/(node|way|relation)/[0-9]+/(full|history|search|ways))$ balancer://backend$1
-  ProxyPass /api/0.6/nodes balancer://backend/api/0.6/nodes
-  ProxyPass /api/0.6/ways balancer://backend/api/0.6/ways
-  ProxyPass /api/0.6/relations balancer://backend/api/0.6/relations
-  ProxyPassMatch ^(/trace/[0-9]+/data(|/|.xml))$ balancer://backend$1
+  RewriteRule ^/api/0\.6/map(\.json|\.xml)?$ fcgi://127.0.0.1:8000$0 [P]
+  RewriteCond %{REQUEST_METHOD} ^(HEAD|GET)$
+  RewriteRule ^/api/0\.6/(node|way|relation|changeset)/[0-9]+(\.json|\.xml)?$ fcgi://127.0.0.1:8000$0 [P]
+  RewriteRule ^/api/0\.6/(node|way|relation)/[0-9]+/history(\.json|\.xml)?$ fcgi://127.0.0.1:8000$0 [P]
+  RewriteRule ^/api/0\.6/(node|way|relation)/[0-9]+/relations(\.json|\.xml)?$ fcgi://127.0.0.1:8000$0 [P]
+  RewriteRule ^/api/0\.6/node/[0-9]+/ways(\.json|\.xml)?$ fcgi://127.0.0.1:8000$0 [P]
+  RewriteRule ^/api/0\.6/(way|relation)/[0-9]+/full(\.json|\.xml)?$ fcgi://127.0.0.1:8000$0 [P]
+  RewriteRule ^/api/0\.6/(nodes|ways|relations)(\.json|\.xml)?$ fcgi://127.0.0.1:8000$0 [P]
+  RewriteRule ^/api/0\.6/changeset/[0-9]+/(upload|download)(\.json|\.xml)?$ fcgi://127.0.0.1:8000$0 [P]
 
   #
   # Redirect trac and wiki requests to the right places
@@ -188,36 +174,6 @@
   #
   RedirectPermanent /images/osm_logo.png https://www.openstreetmap.org/assets/osm_logo.png
   RedirectPermanent /images/cc_button.png https://www.openstreetmap.org/assets/cc_button.png
-
-  #
-  # Define a load balancer for the local backends
-  #
-  <Proxy balancer://backend>
-    ProxySet lbmethod=bybusyness
-<% node[:web][:backends].each do |backend| -%>
-    BalancerMember https://<%= backend %> disablereuse=on
-<% end -%>
-  </Proxy>
-
-  #
-  # Define a load balancer for the Amsterdam backends
-  #
-  <Proxy balancer://amsterdam>
-    ProxySet lbmethod=bybusyness
-<% ["rails1.ams", "rails2.ams", "rails3.ams"].each do |backend| -%>
-    BalancerMember https://<%= backend %> disablereuse=on
-<% end -%>
-  </Proxy>
-
-  #
-  # Define a load balancer for the Bytemark backends
-  #
-  <Proxy balancer://bytemark>
-    ProxySet lbmethod=bybusyness
-<% ["rails4.bm", "rails5.bm"].each do |backend| -%>
-    BalancerMember https://<%= backend %> disablereuse=on
-<% end -%>
-  </Proxy>
 
   #
   # Redirect api requests made to www.osm.org to api.osm.org
@@ -304,6 +260,10 @@
     Header append Content-Encoding gzip
     Header append Vary Accept-Encoding
   </FilesMatch>
+</Directory>
+
+<Directory /srv/www.openstreetmap.org/static>
+  Require all granted
 </Directory>
 
 <Directory /srv/www.openstreetmap.org/rails/app/assets>

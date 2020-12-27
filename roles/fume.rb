@@ -6,6 +6,7 @@ default_attributes(
     :shm_size => "6g"
   },
   :networking => {
+    :hostname => "seshat.civ.zcu.cz",
     :interfaces => {
       :external_ipv4 => {
         :interface => "ens3",
@@ -28,13 +29,7 @@ default_attributes(
     ]
   },
   :tilecache => {
-    :tile_parent => "pilsen.render.openstreetmap.org",
-    :tile_siblings => [
-      "sarkany.openstreetmap.org",
-      "chrysophylax.openstreetmap.org",
-      "drogon.openstreetmap.org",
-      "viserion.openstreetmap.org"
-    ]
+    :tile_parent => "czechia.render.openstreetmap.org"
   }
 )
 

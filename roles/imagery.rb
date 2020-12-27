@@ -4,15 +4,14 @@ description "Role applied to all imagery servers"
 default_attributes(
   :accounts => {
     :users => {
+      :dmlu => { :status => :user },
       :htonl => { :status => :user },
+      :stereo => { :status => :user },
       :imagery => {
         :status => :role,
-        :members => [:grant, :tomh, :htonl]
+        :members => [:grant, :tomh, :dmlu, :htonl, :stereo ]
       }
     }
-  },
-  :apt => {
-    :sources => %w[nginx ubuntugis-unstable]
   },
   :sysctl => {
     :sockets => {
@@ -26,12 +25,6 @@ default_attributes(
       :parameters => {
         "kernel.sched_min_granularity_ns" => 10000000,
         "kernel.sched_wakeup_granularity_ns" => 15000000
-      }
-    },
-    :kernel_tfo_listen_enable => {
-      :comment => "Enable TCP Fast Open for listening sockets",
-      :parameters => {
-        "net.ipv4.tcp_fastopen" => 3
       }
     }
   },
@@ -55,5 +48,7 @@ run_list(
   "recipe[imagery::gb_surrey_aerial]",
   "recipe[imagery::za_ngi_topo]",
   "recipe[imagery::za_coct_aerial]",
-  "recipe[imagery::na_sgswa_topo]"
+  "recipe[imagery::na_sgswa_topo]",
+  "recipe[imagery::lu_ngl_dtm]",
+  "recipe[imagery::lu_lidar_hillshade]"
 )

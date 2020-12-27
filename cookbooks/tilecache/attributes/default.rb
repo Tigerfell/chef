@@ -1,5 +1,4 @@
 default[:tilecache][:tile_parent] = "render.openstreetmap.org"
-default[:tilecache][:tile_siblings] = []
 
 # Per IP bucket refill rate
 default[:tilecache][:ip_bucket_refill] = 4096
@@ -9,3 +8,6 @@ default[:tilecache][:ip_bucket_size] = 67108864
 default[:tilecache][:net_bucket_refill] = 8192
 # Per Class C bucket size
 default[:tilecache][:net_bucket_size] = 134217728
+
+# Enable nginx cache
+default[:nginx][:cache][:proxy][:enable] = true

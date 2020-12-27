@@ -17,6 +17,11 @@
 # limitations under the License.
 #
 
+include_recipe "apt"
+include_recipe "munin"
+include_recipe "prometheus"
+
+package "locales-all"
 package "postgresql-common"
 
 node[:postgresql][:versions].each do |version|
@@ -32,7 +37,7 @@ node[:postgresql][:versions].each do |version|
     source "postgresql.conf.erb"
     owner "postgres"
     group "postgres"
-    mode 0o644
+    mode "644"
     variables :version => version, :defaults => defaults, :settings => settings
     notifies :reload, "service[postgresql]"
   end
@@ -41,7 +46,7 @@ node[:postgresql][:versions].each do |version|
     source "pg_hba.conf.erb"
     owner "postgres"
     group "postgres"
-    mode 0o640
+    mode "640"
     variables :early_rules => settings[:early_authentication_rules] || defaults[:early_authentication_rules],
               :late_rules => settings[:late_authentication_rules] || defaults[:late_authentication_rules]
     notifies :reload, "service[postgresql]"
@@ -51,7 +56,7 @@ node[:postgresql][:versions].each do |version|
     source "pg_ident.conf.erb"
     owner "postgres"
     group "postgres"
-    mode 0o640
+    mode "640"
     variables :maps => settings[:user_name_maps] || defaults[:user_name_maps]
     notifies :reload, "service[postgresql]"
   end
@@ -78,7 +83,7 @@ node[:postgresql][:versions].each do |version|
       source "recovery.conf.erb"
       owner "postgres"
       group "postgres"
-      mode 0o640
+      mode "640"
       variables :standby_mode => standby_mode,
                 :primary_conninfo => primary_conninfo,
                 :restore_command => restore_command,
@@ -102,7 +107,7 @@ ohai_plugin "postgresql" do
   template "ohai.rb.erb"
 end
 
-package "ptop"
+package "pgtop"
 package "libdbd-pg-perl"
 
 clusters = node[:postgresql][:clusters] || []
@@ -147,4 +152,25 @@ clusters.each do |name, details|
     conf "munin.erb"
     conf_variables :port => details[:port]
   end
+end
+
+ports = clusters.collect do |_, details|
+  details[:port]
+end
+
+template "/etc/prometheus/exporters/postgres_queries.yml" do
+  source "postgres_queries.yml.erb"
+  owner "root"
+  group "root"
+  mode "644"
+end
+
+prometheus_exporter "postgres" do
+  port 9187
+  user "postgres"
+  options "--extend.query-path=/etc/prometheus/exporters/postgres_queries.yml"
+  environment "DATA_SOURCE_URI" => "postgres@:#{ports.join(',:')}/postgres?host=/run/postgresql",
+              "PG_EXPORTER_AUTO_DISCOVER_DATABASES" => "true",
+              "PG_EXPORTER_EXCLUDE_DATABASES" => "postgres,template0,template1"
+  subscribes :restart, "template[/etc/prometheus/exporters/postgres_queries.yml]"
 end

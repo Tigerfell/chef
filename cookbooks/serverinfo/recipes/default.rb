@@ -20,17 +20,28 @@
 include_recipe "apache"
 include_recipe "git"
 
-package "ruby"
-package "ruby-dev"
+package %w[
+  gcc
+  g++
+  make
+  ruby
+  ruby-dev
+  libssl-dev
+  zlib1g-dev
+  pkg-config
+]
 
-gem_package "jekyll"
+gem_package "bundler" do
+  version "1.17.3"
+end
 
 git "/srv/hardware.openstreetmap.org" do
   action :sync
-  repository "git://github.com/gravitystorm/osmf-server-info.git"
+  repository "https://github.com/gravitystorm/osmf-server-info.git"
+  depth 1
   user "root"
   group "root"
-  notifies :run, "execute[/srv/hardware.openstreetmap.org]"
+  notifies :run, "execute[/srv/hardware.openstreetmap.org/Gemfile]"
 end
 
 nodes = { :rows => search(:node, "*:*") }
@@ -38,7 +49,7 @@ roles = { :rows => search(:role, "*:*") }
 
 file "/srv/hardware.openstreetmap.org/_data/nodes.json" do
   content nodes.to_json
-  mode 0o644
+  mode "644"
   owner "root"
   group "root"
   notifies :run, "execute[/srv/hardware.openstreetmap.org]"
@@ -46,21 +57,38 @@ end
 
 file "/srv/hardware.openstreetmap.org/_data/roles.json" do
   content roles.to_json
-  mode 0o644
+  mode "644"
   owner "root"
   group "root"
   notifies :run, "execute[/srv/hardware.openstreetmap.org]"
 end
 
 directory "/srv/hardware.openstreetmap.org/_site" do
-  mode 0o755
+  mode "755"
   owner "nobody"
   group "nogroup"
 end
 
+# Workaround https://github.com/jekyll/jekyll/issues/7804
+# by creating a .jekyll-cache folder
+directory "/srv/hardware.openstreetmap.org/.jekyll-cache" do
+  mode "755"
+  owner "nobody"
+  group "nogroup"
+end
+
+execute "/srv/hardware.openstreetmap.org/Gemfile" do
+  action :nothing
+  command "bundle install --deployment"
+  cwd "/srv/hardware.openstreetmap.org"
+  user "root"
+  group "root"
+  notifies :run, "execute[/srv/hardware.openstreetmap.org]"
+end
+
 execute "/srv/hardware.openstreetmap.org" do
   action :nothing
-  command "jekyll build --trace"
+  command "bundle exec jekyll build --trace --baseurl=https://hardware.openstreetmap.org"
   cwd "/srv/hardware.openstreetmap.org"
   user "nobody"
   group "nogroup"

@@ -19,12 +19,11 @@
 
 default_action :create
 
-property :site, :kind_of => String, :name_attribute => true
+property :site, :kind_of => String, :name_property => true
 property :directory, :kind_of => String
 property :cookbook, :kind_of => String
-property :template, :kind_of => String, :required => true
+property :template, :kind_of => String, :required => [:create]
 property :variables, :kind_of => Hash, :default => {}
-property :restart_nginx, :kind_of => [TrueClass, FalseClass], :default => true
 
 action :create do
   declare_resource :template, conf_path do
@@ -32,7 +31,7 @@ action :create do
     source new_resource.template
     owner "root"
     group "root"
-    mode 0o644
+    mode "644"
     variables new_resource.variables.merge(:name => new_resource.site, :directory => directory)
   end
 end
@@ -40,6 +39,7 @@ end
 action :delete do
   file conf_path do
     action :delete
+    notifies :reload, "service[nginx]"
   end
 end
 
@@ -54,5 +54,5 @@ action_class do
 end
 
 def after_created
-  notifies :restart, "service[nginx]" if restart_nginx
+  notifies :reload, "service[nginx]"
 end

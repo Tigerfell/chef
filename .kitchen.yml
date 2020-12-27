@@ -1,16 +1,37 @@
 ---
 driver:
-  name: vagrant
-  provision: true
-  vagrantfiles:
-    - .kitchen.provision.rb
+  name: dokken
+  chef_version: 16
+  env:
+    - container=dokken
+
+transport:
+  name: dokken
 
 provisioner:
-  name: chef_zero
+  name: dokken
+  chef_license: accept
   data_bags_path: test/data_bags
 
+verifier:
+  root_path: /opt/verifier
+  sudo: false
+
 platforms:
-  - name: ubuntu-16.04
+  - name: ubuntu-18.04
+    driver:
+      image: dokken/ubuntu-18.04
+      privileged: true
+      pid_one_command: /bin/systemd
+      intermediate_instructions:
+        - RUN /usr/bin/apt-get update -y
+  - name: ubuntu-20.04
+    driver:
+      image: dokken/ubuntu-20.04
+      privileged: true
+      pid_one_command: /bin/systemd
+      intermediate_instructions:
+        - RUN /usr/bin/apt-get update -y
 
 suites:
   - name: accounts
@@ -19,35 +40,165 @@ suites:
   - name: apache
     run_list:
       - recipe[apache::default]
-  - name: apache-ssl
-    run_list:
-      - recipe[apache::ssl]
   - name: apt
     run_list:
       - recipe[apt::default]
+  - name: backup
+    run_list:
+      - recipe[backup::default]
   - name: bind
     run_list:
       - recipe[bind::default]
+    attributes:
+      bind:
+        clients: none
+  - name: blog
+    run_list:
+      - recipe[blog::default]
   - name: blogs
     run_list:
-      - recipe[accounts::default]
       - recipe[blogs::default]
+  - name: civicrm
+    run_list:
+      - recipe[civicrm::default]
+  - name: clamav
+    run_list:
+      - recipe[clamav::default]
+  - name: db-backup
+    run_list:
+      - recipe[db::backup]
+  - name: db-base
+    run_list:
+      - recipe[db::base]
+  - name: db-master
+    run_list:
+      - recipe[db::master]
+  - name: db-slave
+    run_list:
+      - recipe[db::slave]
+  - name: devices
+    run_list:
+      - recipe[devices::default]
+  - name: dhcpd
+    run_list:
+      - recipe[dhcpd::default]
+    attributes:
+      dhcpd:
+        first_address: 172.18.100.1
+        last_address: 172.18.100.254
+      networking:
+        interfaces:
+          test:
+            interface: eth0
+            role: internal
+            address: 172.18.0.2
+            prefix: 16
+            gateway: 172.18.0.1
+        roles:
+          external:
+            zone: test
+  - name: dmca
+    run_list:
+      - recipe[dmca::default]
+  - name: dns
+    run_list:
+      - recipe[dns::default]
+  - name: docker
+    run_list:
+      - recipe[docker::default]
+  - name: donate
+    run_list:
+      - recipe[donate::default]
+  - name: elasticsearch
+    run_list:
+      - recipe[elasticsearch::default]
+  - name: exim
+    run_list:
+      - recipe[exim::default]
+  - name: fail2ban
+    run_list:
+      - recipe[fail2ban::default]
   - name: forum
     run_list:
-      - recipe[accounts::default]
-      - role[forum]
+      - recipe[forum::default]
+  - name: ftp
+    run_list:
+      - recipe[ftp::default]
+  - name: geodns
+    run_list:
+      - recipe[geodns::default]
+    attributes:
+      networking:
+        interfaces:
+          test:
+            role: external
+            address: 172.18.0.2
+  - name: geoipupdate
+    run_list:
+      - recipe[geoipupdate::default]
+  - name: git
+    run_list:
+      - recipe[git::default]
+  - name: git-server
+    run_list:
+      - recipe[git::server]
+  - name: git-web
+    run_list:
+      - recipe[git::web]
+  - name: gps-tile
+    run_list:
+      - recipe[gps-tile::default]
+  - name: hardware
+    run_list:
+      - recipe[hardware::default]
+  - name: hot
+    run_list:
+      - recipe[hot::default]
+  - name: incron
+    run_list:
+      - recipe[incron::default]
+  - name: irc
+    run_list:
+      - recipe[irc::default]
+  - name: kibana
+    run_list:
+      - recipe[kibana::default]
   - name: letsencrypt
     run_list:
-      - recipe[accounts::default]
-      - recipe[apt::default]
-      - role[letsencrypt]
+      - recipe[letsencrypt::default]
     attributes:
       apt:
         sources:
           - openstreetmap
+  - name: logstash
+    run_list:
+      - recipe[logstash::default]
+  - name: logstash-forwarder
+    run_list:
+      - recipe[logstash::forwarder]
+    attributes:
+      logstash:
+        forwarder:
+          filebeat.prospectors:
+            - input_type: log
+              paths:
+                - /var/log/apache2/access.log
+              type: apache
+  - name: mail
+    run_list:
+      - role[mail]
+  - name: mailman
+    run_list:
+      - recipe[mailman::default]
+  - name: memcached
+    run_list:
+      - recipe[memcached::default]
   - name: munin
     run_list:
       - recipe[munin::default]
+  - name: munin-plugins
+    run_list:
+      - recipe[munin::plugins]
   - name: munin-server
     run_list:
       - recipe[munin::server]
@@ -57,14 +208,164 @@ suites:
   - name: networking
     run_list:
       - recipe[networking::default]
+  - name: nginx
+    run_list:
+      - recipe[nginx::default]
+  - name: nodejs
+    run_list:
+      - recipe[nodejs::default]
+  - name: nominatim
+    run_list:
+      - recipe[nominatim::default]
+  - name: ntp
+    run_list:
+      - recipe[ntp::default]
+  - name: openssh
+    run_list:
+      - recipe[openssh::default]
+  - name: osmosis
+    run_list:
+      - recipe[osmosis::default]
+  - name: osqa
+    run_list:
+      - recipe[osqa::default]
   - name: otrs
     run_list:
-      - recipe[accounts::default]
-      - recipe[chef::default]
-      - role[otrs]
+      - recipe[otrs::default]
+  - name: passenger
+    run_list:
+      - recipe[passenger::default]
+  - name: php
+    run_list:
+      - recipe[php::default]
+  - name: php-apache
+    run_list:
+      - recipe[php::apache]
+  - name: php-fpm
+    run_list:
+      - recipe[php::fpm]
+  - name: piwik
+    run_list:
+      - recipe[piwik::default]
+  - name: planet
+    run_list:
+      - recipe[planet::default]
+  - name: planet-current
+    run_list:
+      - recipe[planet::current]
+  - name: planet-dump
+    run_list:
+      - recipe[planet::dump]
+  - name: planet-notes
+    run_list:
+      - recipe[planet::notes]
+    attributes:
+      web:
+        readonly_database_host: readonly
+  - name: planet-replication
+    run_list:
+      - recipe[planet::replication]
+    attributes:
+      web:
+        readonly_database_host: readonly
+  - name: postgresql
+    run_list:
+      - recipe[postgresql::default]
+    attributes:
+      postgresql:
+        versions:
+          - 10
+  - name: prometheus
+    run_list:
+      - recipe[prometheus::default]
+    attributes:
+      networking:
+        interfaces:
+          test:
+            interface: eth0
+            role: internal
+            address: 172.18.0.2
+            prefix: 16
+            gateway: 172.18.0.1
+  - name: prometheus-server
+    run_list:
+      - recipe[prometheus::server]
   - name: python
     run_list:
       - recipe[python::default]
+  - name: rsyncd
+    run_list:
+      - recipe[rsyncd::default]
+  - name: serverinfo
+    run_list:
+      - recipe[serverinfo::default]
+  - name: snmpd
+    run_list:
+      - recipe[snmpd::default]
+  - name: spamassassin
+    run_list:
+      - recipe[spamassassin::default]
+  - name: squid
+    run_list:
+      - recipe[squid::default]
+  - name: ssl
+    run_list:
+      - recipe[ssl::default]
+  - name: stateofthemap
+    run_list:
+      - recipe[stateofthemap::default]
+  - name: subversion
+    run_list:
+      - recipe[subversion::default]
+  - name: supybot
+    run_list:
+      - recipe[supybot::default]
+  - name: switch2osm
+    run_list:
+      - recipe[switch2osm::default]
+  - name: sysctl
+    run_list:
+      - recipe[sysctl::default]
+  - name: sysfs
+    run_list:
+      - recipe[sysfs::default]
+  - name: taginfo
+    run_list:
+      - recipe[taginfo::default]
+    attributes:
+      taginfo:
+        sites:
+          - name: taginfo.example.com
+  - name: tile
+    run_list:
+      - recipe[tile::default]
+  - name: tilecache
+    run_list:
+      - recipe[tilecache::default]
+  - name: tilelog
+    run_list:
+      - recipe[tilelog::default]
   - name: tools
     run_list:
       - recipe[tools::default]
+  - name: trac
+    run_list:
+      - recipe[trac::default]
+  - name: web-backend
+    run_list:
+      - recipe[web::backend]
+  - name: web-cgimap
+    run_list:
+      - recipe[web::cgimap]
+  - name: web-frontend
+    run_list:
+      - recipe[web::frontend]
+  - name: web-rails
+    run_list:
+      - recipe[web::rails]
+  - name: wiki
+    run_list:
+      - recipe[wiki::default]
+  - name: wordpress
+    run_list:
+      - recipe[wordpress::default]

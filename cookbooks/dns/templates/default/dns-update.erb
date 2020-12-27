@@ -4,14 +4,14 @@
 
 umask 0002
 
-export RSYNC_PASSWORD="<%= @passwords["rsync"] %>"
 export GEODNS_SERVERS="<%= @geoservers.join(" ") %>"
-export PINGDOM_USERNAME="pingdom@openstreetmap.org"
-export PINGDOM_PASSWORD="<%= @passwords["pingdom"] %>"
 export STATUSCAKE_USERNAME="OpenStreetMap"
 export STATUSCAKE_APIKEY="<%= @passwords["statuscake"] %>"
+export PATH=/usr/local/bin:$PATH
 
 cd /var/lib/dns
+
+lockfile-create --use-pid update || exit 1
 
 if [ ! -d .git ]
 then
@@ -21,3 +21,5 @@ fi
 git pull -q
 
 make --jobs update
+
+lockfile-remove update

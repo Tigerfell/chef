@@ -17,7 +17,9 @@
 # limitations under the License.
 #
 
+include_recipe "munin"
 include_recipe "networking"
+include_recipe "prometheus"
 
 package %w[
   exim4
@@ -25,7 +27,9 @@ package %w[
   ssl-cert
 ]
 
-package "exim4-daemon-heavy" if File.exist?("/var/run/clamav/clamd.ctl")
+package "exim4-daemon-heavy" do
+  only_if { ::File.exist?("/var/run/clamav/clamd.ctl") }
+end
 
 group "ssl-cert" do
   action :modify
@@ -50,7 +54,7 @@ else
     key_file "/etc/ssl/private/exim.key"
     owner "root"
     group "ssl-cert"
-    mode 0o640
+    mode "640"
     org "OpenStreetMap"
     email "postmaster@openstreetmap.org"
     common_name node[:fqdn]
@@ -73,22 +77,97 @@ end
 relay_from_hosts = node[:exim][:relay_from_hosts]
 
 if node[:exim][:smarthost_name]
+  search(:node, "roles:gateway") do |gateway|
+    allowed_ips = gateway.interfaces(:role => :internal).map do |interface|
+      "#{interface[:network]}/#{interface[:prefix]}"
+    end
+
+    node.default[:networking][:wireguard][:peers] << {
+      :public_key => gateway[:networking][:wireguard][:public_key],
+      :allowed_ips => allowed_ips,
+      :endpoint => "#{gateway.name}:51820"
+    }
+  end
+
   search(:node, "exim_smarthost_via:#{node[:exim][:smarthost_name]}\\:*").each do |host|
     relay_from_hosts |= host.ipaddresses(:role => :external)
+  end
+
+  domains = node[:exim][:certificate_names].select { |c| c =~ /^a\.mx\./ }.collect { |c| c.sub(/^a\.mx./, "") }
+  primary_domain = domains.first
+
+  directory "/srv/mta-sts.#{primary_domain}" do
+    owner "root"
+    group "root"
+    mode "755"
+  end
+
+  domains.each do |domain|
+    template "/srv/mta-sts.#{primary_domain}/#{domain}.txt" do
+      source "mta-sts.erb"
+      owner "root"
+      group "root"
+      mode "644"
+      variables :domain => domain
+    end
+  end
+
+  ssl_certificate "mta-sts.#{primary_domain}" do
+    domains domains.collect { |d| "mta-sts.#{d}" }
+    notifies :reload, "service[apache2]"
+  end
+
+  apache_site "mta-sts.#{primary_domain}" do
+    template "apache-mta-sts.erb"
+    directory "/srv/mta-sts.#{primary_domain}"
+    variables :domains => domains
   end
 end
 
 file "/etc/exim4/blocked-senders" do
   owner "root"
   group "Debian-exim"
-  mode 0o644
+  mode "644"
+end
+
+if node[:exim][:dkim_selectors]
+  keys = data_bag_item("exim", "dkim")
+
+  template "/etc/exim4/dkim-domains" do
+    owner "root"
+    source "dkim-domains.erb"
+    group "Debian-exim"
+    mode "644"
+  end
+
+  template "/etc/exim4/dkim-selectors" do
+    owner "root"
+    source "dkim-selectors.erb"
+    group "Debian-exim"
+    mode "644"
+  end
+
+  directory "/etc/exim4/dkim-keys" do
+    owner "root"
+    group "Debian-exim"
+    mode "755"
+  end
+
+  node[:exim][:dkim_selectors].each do |domain, _selector|
+    file "/etc/exim4/dkim-keys/#{domain}" do
+      content keys[domain].join("\n")
+      owner "root"
+      group "Debian-exim"
+      mode "640"
+    end
+  end
 end
 
 template "/etc/exim4/exim4.conf" do
   source "exim4.conf.erb"
   owner "root"
   group "Debian-exim"
-  mode 0o644
+  mode "644"
   variables :relay_to_domains => relay_to_domains.sort,
             :relay_from_hosts => relay_from_hosts.sort
   notifies :restart, "service[exim4]"
@@ -115,22 +194,26 @@ template "/etc/aliases" do
   source "aliases.erb"
   owner "root"
   group "root"
-  mode 0o644
+  mode "644"
 end
 
 remote_directory "/etc/exim4/noreply" do
   source "noreply"
   owner "root"
   group "Debian-exim"
-  mode 0o755
+  mode "755"
   files_owner "root"
   files_group "Debian-exim"
-  files_mode 0o755
+  files_mode "755"
   purge true
 end
 
 munin_plugin "exim_mailqueue"
 munin_plugin "exim_mailstats"
+
+prometheus_exporter "exim" do
+  port 9636
+end
 
 if node[:exim][:smarthost_name]
   node[:exim][:daemon_smtp_ports].each do |port|

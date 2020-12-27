@@ -17,10 +17,13 @@
 # limitations under the License.
 #
 
+include_recipe "accounts"
 include_recipe "apache"
 include_recipe "git"
+include_recipe "munin"
 include_recipe "nodejs"
 include_recipe "postgresql"
+include_recipe "prometheus"
 include_recipe "python"
 include_recipe "tools"
 
@@ -43,7 +46,13 @@ ssl_certificate node[:fqdn] do
   notifies :reload, "service[apache2]"
 end
 
+remote_file "#{Chef::Config[:file_cache_path]}/fastly-ip-list.json" do
+  source "https://api.fastly.com/public-ip-list"
+  compile_time true
+end
+
 tilecaches = search(:node, "roles:tilecache").sort_by { |n| n[:hostname] }
+fastlyips = JSON.parse(IO.read("#{Chef::Config[:file_cache_path]}/fastly-ip-list.json"))
 
 apache_site "default" do
   action [:disable]
@@ -51,20 +60,20 @@ end
 
 apache_site "tile.openstreetmap.org" do
   template "apache.erb"
-  variables :caches => tilecaches
+  variables :caches => tilecaches, :fastly => fastlyips["addresses"]
 end
 
 template "/etc/logrotate.d/apache2" do
   source "logrotate.apache.erb"
   owner "root"
   group "root"
-  mode 0o644
+  mode "644"
 end
 
 directory "/srv/tile.openstreetmap.org" do
   owner "tile"
   group "tile"
-  mode 0o755
+  mode "755"
 end
 
 package "renderd"
@@ -94,14 +103,14 @@ end
 directory "/srv/tile.openstreetmap.org/tiles" do
   owner "tile"
   group "tile"
-  mode 0o755
+  mode "755"
 end
 
 template "/etc/renderd.conf" do
   source "renderd.conf.erb"
   owner "root"
   group "root"
-  mode 0o644
+  mode "644"
   notifies :reload, "service[apache2]"
   notifies :restart, "service[renderd]"
 end
@@ -110,26 +119,28 @@ remote_directory "/srv/tile.openstreetmap.org/html" do
   source "html"
   owner "tile"
   group "tile"
-  mode 0o755
+  mode "755"
   files_owner "tile"
   files_group "tile"
-  files_mode 0o644
+  files_mode "644"
 end
 
 template "/srv/tile.openstreetmap.org/html/index.html" do
   source "index.html.erb"
   owner "tile"
   group "tile"
-  mode 0o644
+  mode "644"
 end
 
 package %w[
-  python-cairo
-  python-mapnik
-  python-setuptools
+  python3-cairo
+  python3-mapnik
+  python3-setuptools
 ]
 
-python_package "pyotp"
+python_package "pyotp" do
+  python_version "3"
+end
 
 package %w[
   fonts-noto-cjk
@@ -145,21 +156,21 @@ package %w[
     source "https://github.com/googlei18n/noto-fonts/raw/master/hinted/#{font}"
     owner "root"
     group "root"
-    mode 0o644
+    mode "644"
   end
 end
 
 directory "/srv/tile.openstreetmap.org/cgi-bin" do
   owner "tile"
   group "tile"
-  mode 0o755
+  mode "755"
 end
 
 template "/srv/tile.openstreetmap.org/cgi-bin/export" do
   source "export.erb"
   owner "tile"
   group "tile"
-  mode 0o755
+  mode "755"
   variables :blocks => blocks, :totp_key => web_passwords["totp_key"]
 end
 
@@ -167,20 +178,20 @@ template "/srv/tile.openstreetmap.org/cgi-bin/debug" do
   source "debug.erb"
   owner "tile"
   group "tile"
-  mode 0o755
+  mode "755"
 end
 
 template "/etc/cron.hourly/export" do
   source "export.cron.erb"
   owner "root"
   group "root"
-  mode 0o755
+  mode "755"
 end
 
 directory "/srv/tile.openstreetmap.org/data" do
   owner "tile"
   group "tile"
-  mode 0o755
+  mode "755"
 end
 
 package "mapnik-utils"
@@ -195,7 +206,7 @@ node[:tile][:data].each_value do |data|
     directory directory do
       owner "tile"
       group "tile"
-      mode 0o755
+      mode "755"
     end
   else
     directory = "/srv/tile.openstreetmap.org/data"
@@ -250,7 +261,7 @@ node[:tile][:data].each_value do |data|
     source url
     owner "tile"
     group "tile"
-    mode 0o644
+    mode "644"
     backup false
     notifies :run, "execute[#{file}]", :immediately
     notifies :restart, "service[renderd]"
@@ -258,7 +269,6 @@ node[:tile][:data].each_value do |data|
 end
 
 nodejs_package "carto"
-nodejs_package "millstone"
 
 systemd_service "update-lowzoom@" do
   description "Low zoom tile update service for %i layer"
@@ -276,7 +286,7 @@ end
 directory "/srv/tile.openstreetmap.org/styles" do
   owner "tile"
   group "tile"
-  mode 0o755
+  mode "755"
 end
 
 node[:tile][:styles].each do |name, details|
@@ -287,7 +297,7 @@ node[:tile][:styles].each do |name, details|
     source "update-lowzoom.erb"
     owner "root"
     group "root"
-    mode 0o755
+    mode "755"
     variables :style => name
   end
 
@@ -299,21 +309,21 @@ node[:tile][:styles].each do |name, details|
   directory tile_directory do
     owner "tile"
     group "tile"
-    mode 0o755
+    mode "755"
   end
 
   details[:tile_directories].each do |directory|
     directory directory[:name] do
       owner "www-data"
       group "www-data"
-      mode 0o755
+      mode "755"
     end
 
     directory[:min_zoom].upto(directory[:max_zoom]) do |zoom|
       directory "#{directory[:name]}/#{zoom}" do
         owner "www-data"
         group "www-data"
-        mode 0o755
+        mode "755"
       end
 
       link "#{tile_directory}/#{zoom}" do
@@ -328,7 +338,7 @@ node[:tile][:styles].each do |name, details|
     action :create_if_missing
     owner "tile"
     group "tile"
-    mode 0o444
+    mode "444"
   end
 
   git style_directory do
@@ -360,7 +370,6 @@ end
 postgresql_version = node[:tile][:database][:cluster].split("/").first
 postgis_version = node[:tile][:database][:postgis]
 
-package "postgis"
 package "postgresql-#{postgresql_version}-postgis-#{postgis_version}"
 
 postgresql_user "jburgess" do
@@ -394,6 +403,7 @@ end
 postgresql_extension "hstore" do
   cluster node[:tile][:database][:cluster]
   database "gis"
+  only_if { node[:tile][:database][:hstore] }
 end
 
 %w[geography_columns planet_osm_nodes planet_osm_rels planet_osm_ways raster_columns raster_overviews spatial_ref_sys].each do |table|
@@ -419,16 +429,23 @@ postgresql_munin "gis" do
   database "gis"
 end
 
-file node[:tile][:node_file] do
+directory File.dirname(node[:tile][:database][:node_file]) do
+  owner "root"
+  group "root"
+  mode "755"
+  recursive true
+end
+
+file node[:tile][:database][:node_file] do
   owner "tile"
   group "www-data"
-  mode 0o660
+  mode "660"
 end
 
 directory "/var/log/tile" do
   owner "tile"
   group "tile"
-  mode 0o755
+  mode "755"
 end
 
 package %w[
@@ -436,43 +453,44 @@ package %w[
   ruby
   osmium-tool
   pyosmium
-  python-pyproj
+  python3-pyproj
 ]
 
 remote_directory "/usr/local/bin" do
   source "bin"
   owner "root"
   group "root"
-  mode 0o755
+  mode "755"
   files_owner "root"
   files_group "root"
-  files_mode 0o755
+  files_mode "755"
 end
 
 template "/usr/local/bin/expire-tiles" do
   source "expire-tiles.erb"
   owner "root"
   group "root"
-  mode 0o755
+  mode "755"
 end
 
 directory "/var/lib/replicate" do
   owner "tile"
   group "tile"
-  mode 0o755
+  mode "755"
 end
 
 directory "/var/lib/replicate/expire-queue" do
   owner "tile"
   group "www-data"
-  mode 0o775
+  mode "775"
 end
 
 template "/usr/local/bin/replicate" do
   source "replicate.erb"
   owner "root"
   group "root"
-  mode 0o755
+  mode "755"
+  variables :postgresql_version => postgresql_version.to_f
 end
 
 systemd_service "expire-tiles" do
@@ -522,14 +540,14 @@ template "/etc/logrotate.d/replicate" do
   source "replicate.logrotate.erb"
   owner "root"
   group "root"
-  mode 0o644
+  mode "644"
 end
 
 template "/usr/local/bin/render-lowzoom" do
   source "render-lowzoom.erb"
   owner "root"
   group "root"
-  mode 0o755
+  mode "755"
 end
 
 systemd_service "render-lowzoom" do
@@ -553,10 +571,6 @@ service "render-lowzoom.timer" do
   action [:enable, :start]
 end
 
-file "/etc/cron.d/render-lowzoom" do
-  action :delete
-end
-
 package "liblockfile-simple-perl"
 package "libfilesys-df-perl"
 
@@ -564,19 +578,22 @@ template "/usr/local/bin/cleanup-tiles" do
   source "cleanup-tiles.erb"
   owner "root"
   group "root"
-  mode 0o755
+  mode "755"
 end
 
 tile_directories = node[:tile][:styles].collect do |_, style|
   style[:tile_directories].collect { |directory| directory[:name] }
 end.flatten.sort.uniq
 
-template "/etc/cron.d/cleanup-tiles" do
-  source "cleanup-tiles.cron.erb"
-  owner "root"
-  group "root"
-  mode 0o644
-  variables :directories => tile_directories
+tile_directories.each do |directory|
+  label = directory.gsub("/", "-")
+
+  cron_d "cleanup-tiles#{label}" do
+    minute "0"
+    user "www-data"
+    command "ionice -c 3 /usr/local/bin/cleanup-tiles #{directory}"
+    mailto "admins@openstreetmap.org"
+  end
 end
 
 munin_plugin "mod_tile_fresh"
@@ -591,3 +608,11 @@ munin_plugin "renderd_zoom"
 munin_plugin "renderd_zoom_time"
 
 munin_plugin "replication_delay"
+
+prometheus_collector "modtile" do
+  interval "1m"
+end
+
+prometheus_collector "renderd" do
+  interval "1m"
+end

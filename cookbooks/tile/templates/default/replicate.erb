@@ -17,6 +17,11 @@ exec > /var/log/tile/replicate.log 2>&1
 
 # Change to the replication state directory
 cd /var/lib/replicate
+<% if @postgresql_version >= 12 -%>
+
+# Disable JIT and parallel workers in postgres
+export PGOPTIONS="-c jit=off -c max_parallel_workers_per_gather=0"
+<% end -%>
 
 # Install exit handler
 trap onexit EXIT
@@ -31,7 +36,7 @@ do
     cp sequence.txt sequence-prev.txt
 
     # Fetch the next set of changes
-    pyosmium-get-changes --sequence-file=sequence.txt --outfile=${file}
+    pyosmium-get-changes --server=<%= node[:tile][:replication][:url] %> --sequence-file=sequence.txt --outfile=${file}
 
     # Save exit status
     status=$?
@@ -47,13 +52,20 @@ do
 
         # Apply the changes to the database
         osm2pgsql --database gis --slim --append --number-processes=1 \
-<% if node[:tile][:node_file] -%>
-                  --flat-nodes=<%= node[:tile][:node_file] %> \
+<% if node[:tile][:database][:node_file] -%>
+                  --flat-nodes=<%= node[:tile][:database][:node_file] %> \
 <% end -%>
-<% if node[:tile][:styles][:default][:revision] >= "v4.0.0" -%>
-                  --multi-geometry --hstore \
-                  --style=/srv/tile.openstreetmap.org/styles/default/openstreetmap-carto.style \
-                  --tag-transform-script=/srv/tile.openstreetmap.org/styles/default/openstreetmap-carto.lua \
+<% if node[:tile][:database][:multi_geometry] -%>
+                  --multi-geometry \
+<% end -%>
+<% if node[:tile][:database][:hstore] -%>
+                  --hstore \
+<% end -%>
+<% if node[:tile][:database][:style_file] -%>
+                  --style=<%= node[:tile][:database][:style_file] %> \
+<% end -%>
+<% if node[:tile][:database][:tag_transform_script] -%>
+                  --tag-transform-script=<%= node[:tile][:database][:tag_transform_script] %> \
 <% end -%>
                   ${file}
 

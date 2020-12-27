@@ -18,23 +18,24 @@
 #
 
 include_recipe "apache"
+include_recipe "geoipupdate"
 include_recipe "mysql"
+include_recipe "php::fpm"
 
 passwords = data_bag_item("piwik", "passwords")
 
-package "php"
-package "php-cli"
-package "php-curl"
-package "php-mbstring"
-package "php-mysql"
-package "php-gd"
-package "php-xml"
-package "php-apcu"
-
-package "geoipupdate"
+package %w[
+  php-cli
+  php-curl
+  php-mbstring
+  php-mysql
+  php-gd
+  php-xml
+  php-apcu
+  unzip
+]
 
 apache_module "expires"
-apache_module "php7.2"
 apache_module "rewrite"
 
 version = node[:piwik][:version]
@@ -47,7 +48,7 @@ end
 
 remote_file "#{Chef::Config[:file_cache_path]}/piwik-#{version}.zip" do
   source "https://builds.matomo.org/piwik-#{version}.zip"
-  not_if { File.exist?("/opt/piwik-#{version}/piwik") }
+  not_if { ::File.exist?("/opt/piwik-#{version}/piwik") }
 end
 
 execute "unzip-piwik-#{version}" do
@@ -55,7 +56,7 @@ execute "unzip-piwik-#{version}" do
   cwd "/opt/piwik-#{version}"
   user "root"
   group "root"
-  not_if { File.exist?("/opt/piwik-#{version}/piwik") }
+  not_if { ::File.exist?("/opt/piwik-#{version}/piwik") }
 end
 
 execute "/opt/piwik-#{version}/piwik/piwik.js" do
@@ -63,7 +64,7 @@ execute "/opt/piwik-#{version}/piwik/piwik.js" do
   cwd "/opt/piwik-#{version}"
   user "root"
   group "root"
-  not_if { File.exist?("/opt/piwik-#{version}/piwik/piwik.js.gz") }
+  not_if { ::File.exist?("/opt/piwik-#{version}/piwik/piwik.js.gz") }
 end
 
 directory "/opt/piwik-#{version}/piwik/config" do
@@ -89,20 +90,20 @@ directory "/opt/piwik-#{version}/piwik/tmp" do
 end
 
 link "/opt/piwik-#{version}/piwik/misc/GeoLite2-ASN.mmdb" do
-  to "/var/lib/GeoIP/GeoLite2-ASN.mmdb"
+  to "/usr/share/GeoIP/GeoLite2-ASN.mmdb"
 end
 
 link "/opt/piwik-#{version}/piwik/misc/GeoLite2-City.mmdb" do
-  to "/var/lib/GeoIP/GeoLite2-City.mmdb"
+  to "/usr/share/GeoIP/GeoLite2-City.mmdb"
 end
 
 link "/opt/piwik-#{version}/piwik/misc/GeoLite2-Country.mmdb" do
-  to "/var/lib/GeoIP/GeoLite2-Country.mmdb"
+  to "/usr/share/GeoIP/GeoLite2-Country.mmdb"
 end
 
 link "/srv/piwik.openstreetmap.org" do
   to "/opt/piwik-#{version}/piwik"
-  notifies :restart, "service[apache2]"
+  notifies :restart, "service[php#{node[:php][:version]}-fpm]"
 end
 
 mysql_user "piwik@localhost" do
@@ -118,13 +119,16 @@ ssl_certificate "piwik.openstreetmap.org" do
   notifies :reload, "service[apache2]"
 end
 
+php_fpm "piwik.openstreetmap.org" do
+  prometheus_port 9253
+end
+
 apache_site "piwik.openstreetmap.org" do
   template "apache.erb"
 end
 
-template "/etc/cron.d/piwiki" do
-  source "cron.erb"
-  owner "root"
-  group "root"
-  mode "0644"
+cron_d "piwik" do
+  minute "5"
+  user "www-data"
+  command "/usr/bin/php /srv/piwik.openstreetmap.org/console core:archive --quiet --url=https://piwik.openstreetmap.org/"
 end

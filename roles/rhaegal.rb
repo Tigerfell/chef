@@ -7,27 +7,29 @@ default_attributes(
       :mmiler => { :status => :administrator }
     }
   },
-  :apt => {
-    :sources => ["postgresql"]
-  },
-  :devices => {
-    :ssd_samsung => {
-      :comment => "Tune scheduler for SSD",
-      :type => "block",
-      :bus => "ata",
-      :serial => "Samsung_SSD_860_PRO_*",
-      :attrs => {
-        "queue/scheduler" => "noop",
-        "queue/nr_requests" => "256",
-        "queue/read_ahead_kb" => "2048"
+  :location => "Zagreb, Croatia",
+  :munin => {
+    :plugins => {
+      :sensors_temp => {
+        :temp1 => { :warning => "85.0" },
+        :temp2 => { :warning => "85.0" },
+        :temp3 => { :warning => "85.0" },
+        :temp4 => { :warning => "85.0" },
+        :temp5 => { :warning => "85.0" },
+        :temp6 => { :warning => "85.0" },
+        :temp8 => { :warning => "85.0" },
+        :temp9 => { :warning => "85.0" },
+        :temp10 => { :warning => "85.0" },
+        :temp11 => { :warning => "85.0" },
+        :temp12 => { :warning => "85.0" },
+        :temp13 => { :warning => "85.0" }
       }
     }
   },
-  :location => "Zagreb, Croatia",
   :networking => {
     :interfaces => {
       :external_ipv4 => {
-        :interface => "enp1s0f0",
+        :interface => "eno1",
         :role => :external,
         :family => :inet,
         :address => "10.5.0.77",
@@ -35,14 +37,9 @@ default_attributes(
         :gateway => "10.5.0.1",
         :public_address => "161.53.248.77"
       }
-    },
-    :nameservers => [
-      "10.5.0.7",
-      "8.8.8.8"
-    ]
+    }
   },
   :postgresql => {
-    :versions => ["10"],
     :settings => {
       :defaults => {
         :shared_buffers => "8GB",
@@ -62,10 +59,12 @@ default_attributes(
   },
   :tile => {
     :database => {
-      :cluster => "10/main",
-      :postgis => "2.4"
+      :cluster => "12/main",
+      :postgis => "3"
     },
-    :node_file => "/store/database/nodes",
+    :replication => {
+      :url => "https://planet.osm.org/replication/test/minute/"
+    },
     :styles => {
       :default => {
         :tile_directories => [

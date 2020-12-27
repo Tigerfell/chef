@@ -9,12 +9,6 @@ default_attributes(
       }
     }
   },
-  :apt => {
-    :sources => ["nginx"]
-  },
-  :networking => {
-    :tcp_fastopen_key => "tile"
-  },
   :nginx => {
     :access_log => false
   },
@@ -40,13 +34,13 @@ default_attributes(
     :network_local_port_range => {
       :comment => "Increase available local port range",
       :parameters => {
-        "net.ipv4.ip_local_port_range" => "1024 65000"
+        "net.ipv4.ip_local_port_range" => "1024\t65535"
       }
     },
-    :kernel_tfo_listen_enable => {
-      :comment => "Enable TCP Fast Open for listening sockets",
+    :network_tcp_timewait_reuse => {
+      :comment => "Allow tcp timewait reuse",
       :parameters => {
-        "net.ipv4.tcp_fastopen" => 3
+        "net.ipv4.tcp_tw_reuse" => 1
       }
     },
     :squid_swappiness => {
@@ -60,6 +54,15 @@ default_attributes(
       :parameters => {
         "kernel.sched_min_granularity_ns" => "10000000",
         "kernel.sched_wakeup_granularity_ns" => "15000000"
+      }
+    }
+  },
+  :tools => {
+    :cron => {
+      :load => {
+        :nice => 19,
+        :io_scheduling_class => "best-effort",
+        :io_scheduling_priority => 7
       }
     }
   }

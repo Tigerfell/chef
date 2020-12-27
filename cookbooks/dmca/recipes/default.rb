@@ -18,28 +18,36 @@
 #
 
 include_recipe "apache"
+include_recipe "php::fpm"
 
-apache_module "php7.2"
+apache_module "proxy"
+apache_module "proxy_fcgi"
 
 directory "/srv/dmca.openstreetmap.org" do
   owner "root"
   group "root"
-  mode 0o755
+  mode "755"
 end
 
 remote_directory "/srv/dmca.openstreetmap.org/html" do
   source "html"
   owner "root"
   group "root"
-  mode 0o755
+  mode "755"
   files_owner "root"
   files_group "root"
-  files_mode 0o644
+  files_mode "644"
 end
 
 ssl_certificate "dmca.openstreetmap.org" do
   domains ["dmca.openstreetmap.org", "dmca.osm.org"]
   notifies :reload, "service[apache2]"
+end
+
+php_fpm "dmca.openstreetmap.org" do
+  php_admin_values "open_basedir" => "/srv/dmca.openstreetmap.org/html/:/usr/share/php/:/tmp/",
+                   "disable_functions" => "exec,shell_exec,system,passthru,popen,proc_open"
+  prometheus_port 11201
 end
 
 apache_site "dmca.openstreetmap.org" do

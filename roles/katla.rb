@@ -2,12 +2,6 @@ name "katla"
 description "Master role applied to katla"
 
 default_attributes(
-  :apt => {
-    :sources => ["postgresql"]
-  },
-  :db => {
-    :cluster => "9.5/main"
-  },
   :devices => {
     :store_slow => {
       :comment => "RAID array mounted on /store/arrays/slow",

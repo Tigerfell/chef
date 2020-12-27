@@ -17,10 +17,11 @@
 # limitations under the License.
 #
 
-include_recipe "tools"
+include_recipe "accounts"
 include_recipe "apache"
 include_recipe "memcached"
 include_recipe "python"
+include_recipe "tools"
 
 package "python-dev"
 package "libmysqlclient-dev"
@@ -28,16 +29,13 @@ package "libpq-dev"
 
 python_directory = "/opt/osqa-python"
 
-python_virtualenv python_directory
+python_virtualenv python_directory do
+  interpreter "/usr/bin/python2"
+end
 
 python_package "Django" do
   python_virtualenv python_directory
   version "1.6.11"
-end
-
-python_package "html5lib" do
-  python_virtualenv python_directory
-  version "0.999"
 end
 
 python_package "Markdown" do
@@ -55,11 +53,6 @@ python_package "python-openid" do
   version "2.2.5"
 end
 
-python_package "MySQL-python" do
-  python_virtualenv python_directory
-  version "1.2.3"
-end
-
 python_package "psycopg2" do
   python_virtualenv python_directory
   version "2.7.6.1"
@@ -68,6 +61,11 @@ end
 python_package "South" do
   python_virtualenv python_directory
   version "0.7.6"
+end
+
+python_package "html5lib" do
+  python_virtualenv python_directory
+  version "0.999"
 end
 
 apache_module "rewrite"
@@ -100,7 +98,7 @@ node[:osqa][:sites].each do |site|
   directory directory do
     owner site_user
     group site_group
-    mode 0o755
+    mode "755"
   end
 
   execute "osqa-migrate" do
@@ -116,6 +114,7 @@ node[:osqa][:sites].each do |site|
     action :sync
     repository "https://git.openstreetmap.org/public/osqa.git"
     revision "live"
+    depth 1
     user site_user
     group site_group
     notifies :run, "execute[osqa-migrate]"
@@ -124,14 +123,14 @@ node[:osqa][:sites].each do |site|
   directory "#{directory}/upfiles" do
     user site_user
     group site_group
-    mode 0o755
+    mode "755"
   end
 
   template "#{directory}/osqa/osqa.wsgi" do
     source "osqa.wsgi.erb"
     owner site_user
     group site_group
-    mode 0o644
+    mode "644"
     variables :directory => directory
     notifies :reload, "service[apache2]"
   end
@@ -153,7 +152,7 @@ node[:osqa][:sites].each do |site|
   file "#{directory}/osqa/settings_local.py" do
     owner site_user
     group site_group
-    mode 0o644
+    mode "644"
     content settings
     notifies :reload, "service[apache2]"
   end
@@ -162,7 +161,7 @@ node[:osqa][:sites].each do |site|
     source "backup.cron.erb"
     owner "root"
     group "root"
-    mode 0o755
+    mode "755"
     variables :name => backup_name, :directory => directory, :user => site_user, :database => database_name
   end
 end

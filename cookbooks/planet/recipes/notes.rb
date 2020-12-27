@@ -21,18 +21,23 @@ include_recipe "git"
 
 db_passwords = data_bag_item("db", "passwords")
 
-package "python-psycopg2"
-package "python-lxml"
+package %w[
+  pbzip2
+  python3
+  python3-psycopg2
+  python3-lxml
+]
 
 directory "/opt/planet-notes-dump" do
   owner "root"
   group "root"
-  mode 0o755
+  mode "755"
 end
 
 git "/opt/planet-notes-dump" do
   action :sync
-  repository "git://github.com/openstreetmap/planet-notes-dump.git"
+  repository "https://github.com/openstreetmap/planet-notes-dump.git"
+  depth 1
   user "root"
   group "root"
 end
@@ -41,13 +46,23 @@ template "/usr/local/bin/planet-notes-dump" do
   source "planet-notes-dump.erb"
   owner "root"
   group "root"
-  mode 0o755
+  mode "755"
   variables :password => db_passwords["planetdump"]
 end
 
-template "/etc/cron.d/planet-notes-dump" do
-  source "planet-notes-dump.cron.erb"
-  owner "root"
-  group "root"
-  mode 0o644
+cron_d "planet-notes-dump" do
+  minute "0"
+  hour "3"
+  user "www-data"
+  command "/usr/local/bin/planet-notes-dump"
+  mailto "grant-smaug@firefishy.com"
+end
+
+cron_d "planet-notes-cleanup" do
+  comment "Delete Planet Notes dump files older than 8 days"
+  minute "10"
+  hour "8"
+  user "www-data"
+  command "find /store/planet/notes/20??/ -maxdepth 1 -type f -iname 'planet-notes-??????.osn*' -printf '\%T@ \%p\n' | sort -k 1nr | sed 's/^[^ ]* //' | tail -n +17 | xargs -r rm -f"
+  mailto "grant-smaug@firefishy.com"
 end

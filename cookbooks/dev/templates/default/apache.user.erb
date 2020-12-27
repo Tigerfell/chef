@@ -1,6 +1,6 @@
 # DO NOT EDIT - This file is being maintained by Chef
 
-WSGIDaemonProcess <%= @user %>.dev.openstreetmap.org user=<%= @user %> inactivity-timeout=600
+WSGIDaemonProcess <%= @user %>.dev.openstreetmap.org user=<%= @user %> processes=2 threads=8 restart-interval=3600 inactivity-timeout=600 graceful-timeout=60 maximum-requests=2000
 
 <VirtualHost *:443>
 	ServerName <%= @user %>.dev.openstreetmap.org
@@ -29,8 +29,9 @@ WSGIDaemonProcess <%= @user %>.dev.openstreetmap.org user=<%= @user %> inactivit
 	RewriteCond <%= @directory %>%{REQUEST_FILENAME} -f
 	RewriteRule ^/cgi-bin/(.*)$ /~<%= @user %>/cgi-bin/$1 [PT,L]
 
-	RewriteCond <%= @directory %>%{REQUEST_FILENAME} -f
-	RewriteRule ^/(.*\.ph(p|ps|p3|tml)(/.*)?)$ fcgi://127.0.0.1:<%= @port %><%= @directory %>/$1 [P]
+	<FilesMatch ".+\.ph(p|ps|p3|tml)$">
+		SetHandler "proxy:unix:/run/php/<%= @user %>.sock|fcgi://127.0.0.1"
+	</FilesMatch>
 </VirtualHost>
 
 <VirtualHost *:80>

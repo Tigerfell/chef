@@ -22,20 +22,21 @@ require "securerandom"
 
 include_recipe "apache"
 include_recipe "passenger"
+include_recipe "geoipupdate"
 include_recipe "git"
 include_recipe "memcached"
+include_recipe "munin"
 include_recipe "mysql"
 include_recipe "nodejs"
+include_recipe "php::fpm"
 include_recipe "postgresql"
 include_recipe "python"
 
 package %w[
-  php
   php-cgi
   php-cli
   php-curl
   php-db
-  php-fpm
   php-imagick
   php-mysql
   php-pear
@@ -43,14 +44,13 @@ package %w[
   php-sqlite3
   pngcrush
   pngquant
-  python
-  python-argparse
-  python-beautifulsoup
-  python-cheetah
-  python-dateutil
-  python-magic
-  python-psycopg2
-  python-gdal
+  python3
+  python3-bs4
+  python3-cheetah
+  python3-dateutil
+  python3-magic
+  python3-psycopg2
+  python3-gdal
   g++
   gcc
   make
@@ -74,7 +74,9 @@ package %w[
 
 nodejs_package "svgo"
 
-python_package "geojson"
+python_package "geojson" do
+  python_version "3"
+end
 
 apache_module "env"
 apache_module "expires"
@@ -84,38 +86,35 @@ apache_module "proxy_fcgi"
 apache_module "rewrite"
 apache_module "suexec"
 apache_module "userdir"
-apache_module "wsgi"
+
+apache_module "wsgi" do
+  package "libapache2-mod-wsgi-py3"
+end
 
 package "apache2-suexec-pristine"
 
-service "php7.2-fpm" do
-  action [:enable, :start]
+php_fpm "default" do
+  pm_max_children 10
+  pm_start_servers 4
+  pm_min_spare_servers 2
+  pm_max_spare_servers 6
 end
 
-template "/etc/php/7.2/fpm/pool.d/default.conf" do
-  source "fpm-default.conf.erb"
-  owner "root"
-  group "root"
-  mode 0o644
-  notifies :reload, "service[php7.2-fpm]"
-end
-
-file "/etc/php/7.2/fpm/pool.d/www.conf" do
+php_fpm "www" do
   action :delete
-  notifies :reload, "service[php7.2-fpm]"
 end
 
 directory "/srv/dev.openstreetmap.org" do
   owner "root"
   group "root"
-  mode 0o755
+  mode "755"
 end
 
 template "/srv/dev.openstreetmap.org/index.html" do
   source "dev.html.erb"
   owner "root"
   group "root"
-  mode 0o644
+  mode "644"
 end
 
 ssl_certificate "dev.openstreetmap.org" do
@@ -133,7 +132,7 @@ template "/etc/phppgadmin/config.inc.php" do
   source "phppgadmin.conf.erb"
   owner "root"
   group "root"
-  mode 0o644
+  mode "644"
 end
 
 file "/etc/apache2/conf.d/phppgadmin" do
@@ -159,15 +158,27 @@ search(:accounts, "*:*").each do |account|
 
   next unless File.directory?("#{user_home}/public_html")
 
-  port = 7000 + account["uid"].to_i
-
-  template "/etc/php/7.2/fpm/pool.d/#{name}.conf" do
-    source "fpm.conf.erb"
-    owner "root"
-    group "root"
-    mode 0o644
-    variables :user => name, :port => port
-    notifies :reload, "service[php7.2-fpm]"
+  php_fpm name do
+    user name
+    group name
+    pm_max_children 10
+    pm_start_servers 4
+    pm_min_spare_servers 2
+    pm_max_spare_servers 6
+    pm_max_requests 10000
+    request_terminate_timeout 1800
+    environment "HOSTNAME" => "$HOSTNAME",
+                "PATH" => "/usr/local/bin:/usr/bin:/bin",
+                "TMP" => "/tmp",
+                "TMPDIR" => "/tmp",
+                "TEMP" => "/tmp"
+    php_values "max_execution_time" => "300",
+               "memory_limit" => "128M",
+               "post_max_size" => "32M",
+               "upload_max_filesize" => "32M"
+    php_admin_values "sendmail_path" => "/usr/sbin/sendmail -t -i -f #{name}@errol.openstreetmap.org",
+                     "open_basedir" => "/home/#{name}/:/tmp/:/usr/share/php/"
+    php_flags "display_errors" => "on"
   end
 
   ssl_certificate "#{name}.dev.openstreetmap.org" do
@@ -178,21 +189,21 @@ search(:accounts, "*:*").each do |account|
   apache_site "#{name}.dev.openstreetmap.org" do
     template "apache.user.erb"
     directory "#{user_home}/public_html"
-    variables :user => name, :port => port
+    variables :user => name
   end
 
   template "/etc/sudoers.d/#{name}" do
     source "sudoers.user.erb"
     owner "root"
     group "root"
-    mode 0o440
+    mode "440"
     variables :user => name
   end
 end
 
-if node[:postgresql][:clusters][:"9.5/main"]
+if node[:postgresql][:clusters][:"12/main"]
   postgresql_user "apis" do
-    cluster "9.5/main"
+    cluster "12/main"
   end
 
   template "/usr/local/bin/cleanup-rails-assets" do
@@ -200,7 +211,7 @@ if node[:postgresql][:clusters][:"9.5/main"]
     source "cleanup-assets.erb"
     owner "root"
     group "root"
-    mode 0o755
+    mode "755"
   end
 
   ruby_version = node[:passenger][:ruby_version]
@@ -247,17 +258,15 @@ if node[:postgresql][:clusters][:"9.5/main"]
 
     if details[:repository]
       site_aliases = details[:aliases] || []
-      secret_key_base = details[:secret_key_base] || SecureRandom.base64(96)
-
-      node.normal[:dev][:rails][name][:secret_key_base] = secret_key_base
+      secret_key_base = persistent_token("dev", "rails", name, "secret_key_base")
 
       postgresql_database database_name do
-        cluster "9.5/main"
+        cluster "12/main"
         owner "apis"
       end
 
       postgresql_extension "#{database_name}_btree_gist" do
-        cluster "9.5/main"
+        cluster "12/main"
         database database_name
         extension "btree_gist"
       end
@@ -265,31 +274,31 @@ if node[:postgresql][:clusters][:"9.5/main"]
       directory site_directory do
         owner "apis"
         group "apis"
-        mode 0o755
+        mode "755"
       end
 
       directory log_directory do
         owner "apis"
         group "apis"
-        mode 0o755
+        mode "755"
       end
 
       directory gpx_directory do
         owner "apis"
         group "apis"
-        mode 0o755
+        mode "755"
       end
 
       directory "#{gpx_directory}/traces" do
         owner "apis"
         group "apis"
-        mode 0o755
+        mode "755"
       end
 
       directory "#{gpx_directory}/images" do
         owner "apis"
         group "apis"
-        mode 0o755
+        mode "755"
       end
 
       rails_port site_name do
@@ -299,9 +308,10 @@ if node[:postgresql][:clusters][:"9.5/main"]
         group "apis"
         repository details[:repository]
         revision details[:revision]
-        database_port node[:postgresql][:clusters][:"9.5/main"][:port]
+        database_port node[:postgresql][:clusters][:"12/main"][:port]
         database_name database_name
         database_username "apis"
+        email_from "OpenStreetMap <web@noreply.openstreetmap.org>"
         gpx_dir gpx_directory
         log_path "#{log_directory}/rails.log"
         memcache_servers ["127.0.0.1"]
@@ -314,7 +324,7 @@ if node[:postgresql][:clusters][:"9.5/main"]
         source "rails.setup.rb.erb"
         owner "apis"
         group "apis"
-        mode 0o644
+        mode "644"
         variables :site => site_name
         notifies :restart, "rails_port[#{site_name}]"
       end
@@ -368,9 +378,9 @@ if node[:postgresql][:clusters][:"9.5/main"]
           source "cgimap.environment.erb"
           owner "root"
           group "root"
-          mode 0o640
+          mode "640"
           variables :cgimap_port => cgimap_port,
-                    :database_port => node[:postgresql][:clusters][:"9.5/main"][:port],
+                    :database_port => node[:postgresql][:clusters][:"12/main"][:port],
                     :database_name => database_name,
                     :log_directory => log_directory
           notifies :restart, "service[cgimap@#{name}]"
@@ -399,7 +409,7 @@ if node[:postgresql][:clusters][:"9.5/main"]
         source "logrotate.apis.erb"
         owner "root"
         group "root"
-        mode 0o644
+        mode "644"
         variables :name => name,
                   :log_directory => log_directory,
                   :rails_directory => rails_directory
@@ -434,24 +444,22 @@ if node[:postgresql][:clusters][:"9.5/main"]
 
       postgresql_database database_name do
         action :drop
-        cluster "9.5/main"
+        cluster "12/main"
       end
-
-      node.normal[:dev][:rails].delete(name)
     end
   end
 
   directory "/srv/apis.dev.openstreetmap.org" do
     owner "apis"
     group "apis"
-    mode 0o755
+    mode "755"
   end
 
   template "/srv/apis.dev.openstreetmap.org/index.html" do
     source "apis.html.erb"
     owner "apis"
     group "apis"
-    mode 0o644
+    mode "644"
   end
 
   ssl_certificate "apis.dev.openstreetmap.org" do
@@ -474,17 +482,17 @@ end
 directory "/srv/ooc.openstreetmap.org" do
   owner "root"
   group "root"
-  mode 0o755
+  mode "755"
 end
 
 remote_directory "/srv/ooc.openstreetmap.org/html" do
   source "ooc"
   owner "root"
   group "root"
-  mode 0o755
+  mode "755"
   files_owner "root"
   files_group "root"
-  files_mode 0o644
+  files_mode "644"
 end
 
 ssl_certificate "ooc.openstreetmap.org" do

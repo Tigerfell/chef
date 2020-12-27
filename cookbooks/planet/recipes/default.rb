@@ -17,17 +17,14 @@
 # limitations under the License.
 #
 
+include_recipe "accounts"
 include_recipe "apache"
+include_recipe "munin"
 
-package "perl"
-package "pbzip2"
-package "osmosis"
-
-package "php-cli"
-
-file "/etc/cron.d/planet" do
-  action :delete
-end
+package %w[
+  perl
+  php-cli
+]
 
 remote_directory "/store/planet#html" do
   path "/store/planet"
@@ -37,7 +34,7 @@ remote_directory "/store/planet#html" do
   mode "0755"
   files_owner "root"
   files_group "root"
-  files_mode 0o644
+  files_mode "644"
 end
 
 remote_directory "/store/planet#cgi" do
@@ -45,30 +42,30 @@ remote_directory "/store/planet#cgi" do
   source "cgi"
   owner "root"
   group "root"
-  mode 0o755
+  mode "755"
   files_owner "root"
   files_group "root"
-  files_mode 0o755
+  files_mode "755"
 end
 
 remote_directory node[:planet][:dump][:xml_history_directory] do
   source "history_cgi"
   owner "www-data"
   group "planet"
-  mode 0o775
+  mode "775"
   files_owner "root"
   files_group "root"
-  files_mode 0o755
+  files_mode "755"
 end
 
 remote_directory "/store/planet/cc-by-sa/full-experimental" do
   source "ccbysa_history_cgi"
   owner "www-data"
   group "planet"
-  mode 0o775
+  mode "775"
   files_owner "root"
   files_group "root"
-  files_mode 0o755
+  files_mode "755"
 end
 
 [:xml_directory, :xml_history_directory,
@@ -76,27 +73,28 @@ end
   directory node[:planet][:dump][dir] do
     owner "www-data"
     group "planet"
-    mode 0o775
+    mode "775"
   end
 end
 
 directory "/store/planet/notes" do
   owner "www-data"
   group "planet"
-  mode 0o775
+  mode "775"
 end
 
 template "/usr/local/bin/apache-latest-planet-filename" do
   source "apache-latest-planet-filename.erb"
   owner "root"
   group "root"
-  mode 0o755
+  mode "755"
   notifies :restart, "service[apache2]"
 end
 
 apache_module "cgid"
 apache_module "rewrite"
 apache_module "proxy_http"
+apache_module "ratelimit"
 
 ssl_certificate "planet.openstreetmap.org" do
   domains ["planet.openstreetmap.org", "planet.osm.org"]
@@ -111,7 +109,7 @@ template "/etc/logrotate.d/apache2" do
   source "logrotate.apache.erb"
   owner "root"
   group "root"
-  mode 0o644
+  mode "644"
 end
 
 munin_plugin "planet_age"
@@ -120,12 +118,15 @@ template "/usr/local/bin/old-planet-file-cleanup" do
   source "old-planet-file-cleanup.erb"
   owner "root"
   group "root"
-  mode 0o755
+  mode "755"
 end
 
-template "/etc/cron.d/old-planet-file-cleanup" do
-  source "old-planet-file-cleanup.cron.erb"
-  owner "root"
-  group "root"
-  mode 0o644
+cron_d "old-planet-file-cleanup" do
+  comment "run this on the first monday of the month at 3:44am"
+  minute "44"
+  hour "3"
+  day "1-7"
+  user "www-data"
+  command "test $(date +\\%u) -eq 1 && /usr/local/bin/old-planet-file-cleanup --debug"
+  mailto "zerebubuth@gmail.com"
 end

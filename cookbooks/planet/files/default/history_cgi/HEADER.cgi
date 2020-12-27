@@ -10,7 +10,7 @@ def nice_size(file):
     MB = 1024. * KB
     GB = 1024. * MB
     TB = 1024. * GB
-    
+
     if size < KB:
         size, suffix = size, ''
     elif size < MB:
@@ -21,7 +21,7 @@ def nice_size(file):
         size, suffix = size/GB, 'GB'
     else:
         size, suffix = size/TB, 'TB'
-    
+
     if size < 10:
         return '%.1f %s' % (round(size,1), suffix)
     else:
@@ -44,11 +44,12 @@ def nice_time(time):
     return '%d months' % (time / 2592000.)
 
 def file_info(file, name):
+    torrent_file = file + '.torrent'
     size = nice_size(file)
     hash = search(r'\w{32}', open(file+'.md5', 'r').read()).group(0)
     date = nice_time(time() - stat(file).st_mtime)
 
-    return '<b><a href="%(file)s">%(name)s</a></b><br><b>%(size)s</b>, created %(date)s ago.<br><small>md5: %(hash)s</small>.' % locals()
+    return '<b><a href="%(file)s">%(name)s</a> (<a href="%(torrent_file)s">torrent</a>)</b><br><b>%(size)s</b>, created %(date)s ago.<br><small>md5: %(hash)s</small>.' % locals()
 
 planet_link = file_info('history-latest.osm.bz2', 'Latest Full History Planet XML File')
 planet_pbf_link = file_info('../../pbf/full-history/history-latest.osm.pbf', 'Latest Full History Planet PBF File')
@@ -58,16 +59,16 @@ print """
 <html>
  <head>
   <title>Index of /planet/full-history</title>
-  <link href="../../style.css" rel="stylesheet" type="text/css">
+  <link href="https://planet.openstreetmap.org/style.css" rel="stylesheet" type="text/css">
  </head>
  <body>
-<img id="logo" src="../../logo.png" alt="OSM logo" width="128" height="128">
+<img id="logo" src="https://planet.openstreetmap.org/logo.png" alt="OSM logo" width="128" height="128">
 <h1>Planet OSM</h1>
 
 <p>
 The files found here are complete copies of the OpenStreetMap.org
-database, including editing history. These are published under an 
-Open Data Commons Open Database License 1.0 licensed. For more 
+database, including editing history. These are published under an
+Open Data Commons Open Database License 1.0 licensed. For more
 information, <a href="https://wiki.openstreetmap.org/wiki/Planet.osm/full">see the project wiki</a>.
 </p>
 
@@ -94,13 +95,13 @@ information, <a href="https://wiki.openstreetmap.org/wiki/Planet.osm/full">see t
     </td>
     <td>
         <p>
-        You are granted permission to use OpenStreetMap data by 
-        <a href="https://osm.org/copyright">the OpenStreetMap License</a>, which also describes 
+        You are granted permission to use OpenStreetMap data by
+        <a href="https://osm.org/copyright">the OpenStreetMap License</a>, which also describes
         your obligations.
         </p>
         <p>
         You can <a href="https://wiki.openstreetmap.org/wiki/Planet.osm/full#Processing">process the file</a>
-        or extracts with a variety of tools, although some tools for processing OSM data will 
+        or extracts with a variety of tools, although some tools for processing OSM data will
 	only work on 'current' planets and will not process a 'history' planet available here.
         </p>
     </td>
@@ -108,7 +109,7 @@ information, <a href="https://wiki.openstreetmap.org/wiki/Planet.osm/full">see t
         <p>
         The complete history planet is extremely large, so you may prefer to use one of
         <a href="https://wiki.openstreetmap.org/wiki/Planet.osm/full#Extracts">the available extracts</a>
-        (individual countries or states) from third parties. 
+        (individual countries or states) from third parties.
         </p>
     </td>
   </tr>

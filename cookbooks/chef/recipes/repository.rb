@@ -21,10 +21,14 @@ include_recipe "git"
 
 keys = data_bag_item("chef", "keys")
 
+chef_gem "bundler" do
+  version ">= 2.1.4"
+end
+
 directory "/var/lib/chef" do
   owner "chefrepo"
   group "chefrepo"
-  mode 0o2775
+  mode "2775"
 end
 
 %w[public private].each do |repository|
@@ -41,28 +45,28 @@ end
   directory "/var/lib/chef/#{repository}/.chef" do
     owner "chefrepo"
     group "chefrepo"
-    mode 0o2775
+    mode "2775"
   end
 
   file "/var/lib/chef/#{repository}/.chef/client.pem" do
     content keys["git"].join("\n")
     owner "chefrepo"
     group "chefrepo"
-    mode 0o660
+    mode "660"
   end
 
   cookbook_file "/var/lib/chef/#{repository}/.chef/knife.rb" do
     source "knife.rb"
     owner "chefrepo"
     group "chefrepo"
-    mode 0o660
+    mode "660"
   end
 
   template "#{repository_directory}/hooks/post-receive" do
     source "post-receive.erb"
     owner "chefrepo"
     group "chefrepo"
-    mode 0o750
+    mode "750"
     variables :repository => repository
   end
 end

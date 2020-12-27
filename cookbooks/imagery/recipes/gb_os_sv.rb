@@ -26,6 +26,13 @@ cookbook_file "/srv/imagery/common/ossv-palette.txt" do
   mode "0644"
 end
 
+cookbook_file "/srv/imagery/common/os-openmap-local-palette.txt" do
+  source "os-openmap-local-palette.txt"
+  owner "root"
+  group "root"
+  mode "0644"
+end
+
 cookbook_file "/srv/imagery/common/osstvw_process" do
   source "osstvw_process"
   owner "root"
@@ -181,7 +188,6 @@ end
 imagery_layer "gb_os_sv_2016_04" do
   site "os.openstreetmap.org"
   title "April 2016"
-  default_layer true
   projection "EPSG:27700"
   source "/data/imagery/gb/os-sv/ossv-2016-04-combined.vrt"
   copyright "Contains Ordnance Survey data &copy; Crown copyright and database right 2016"
@@ -1048,4 +1054,77 @@ imagery_layer "gb_os_sv_diff_2015_11_2016_04" do
   extension "os_sv_diff_png"
   url_aliases ["/sv-diff-2015-11-2016-04"]
   overlay true
+end
+
+imagery_layer "gb_os_om_local_2020_04" do
+  site "os.openstreetmap.org"
+  title "OS OpenMap Local - April 2020"
+  projection "EPSG:27700"
+  source "/data/imagery/gb/openmap-local/2020-04/os-openmap-local-2020-04-combined-sea-average-zstd22.vrt"
+  copyright "Contains OS data &copy; Crown copyright and database right 2020"
+  revision 2
+  background_colour "213 244 248" # OS OpenMap Local Water Blue
+  extension "os_om_local_png"
+  url_aliases ["/om-local-2020-04", "/om-local"]
+  default_layer true
+end
+
+imagery_layer "gb_os_om_local_2016_10" do
+  site "os.openstreetmap.org"
+  title "OS OpenMap Local - October 2016"
+  projection "EPSG:27700"
+  source "/data/imagery/gb/openmap-local/2016-10/os-openmap-local-2016-10.vrt"
+  copyright "Contains OS data &copy; Crown copyright and database right 2016"
+  background_colour "213 244 248" # OS OpenMap Local Water Blue
+  extension "os_om_local_png"
+end
+
+imagery_layer "gb_os_om_local_2017_04" do
+  site "os.openstreetmap.org"
+  title "OS OpenMap Local - April 2017"
+  projection "EPSG:27700"
+  source "/data/imagery/gb/openmap-local/2017-04/os-openmap-local-2017-04.vrt"
+  copyright "Contains OS data &copy; Crown copyright and database right 2017"
+  background_colour "213 244 248" # OS OpenMap Local Water Blue
+  extension "os_om_local_png"
+end
+
+imagery_layer "gb_os_om_local_2017_10" do
+  site "os.openstreetmap.org"
+  title "OS OpenMap Local - October 2017"
+  projection "EPSG:27700"
+  source "/data/imagery/gb/openmap-local/2017-10/os-openmap-local-2017-10.vrt"
+  copyright "Contains OS data &copy; Crown copyright and database right 2017"
+  background_colour "213 244 248" # OS OpenMap Local Water Blue
+  extension "os_om_local_png"
+end
+
+imagery_layer "gb_os_om_local_2018_04" do
+  site "os.openstreetmap.org"
+  title "OS OpenMap Local - April 2018"
+  projection "EPSG:27700"
+  source "/data/imagery/gb/openmap-local/2018-04/os-openmap-local-2018-04.vrt"
+  copyright "Contains OS data &copy; Crown copyright and database right 2018"
+  background_colour "213 244 248" # OS OpenMap Local Water Blue
+  extension "os_om_local_png"
+end
+
+imagery_layer "gb_os_om_local_2018_05" do
+  site "os.openstreetmap.org"
+  title "OS OpenMap Local - May 2018"
+  projection "EPSG:27700"
+  source "/data/imagery/gb/openmap-local/2018-05/os-openmap-local-2018-05.vrt"
+  copyright "Contains OS data &copy; Crown copyright and database right 2018"
+  background_colour "213 244 248" # OS OpenMap Local Water Blue
+  extension "os_om_local_png"
+end
+
+imagery_layer "gb_os_om_local_2019_04" do
+  site "os.openstreetmap.org"
+  title "OS OpenMap Local - April 2019"
+  projection "EPSG:27700"
+  source "/data/imagery/gb/openmap-local/2019-04/os-openmap-local-2019-04.vrt"
+  copyright "Contains OS data &copy; Crown copyright and database right 2019"
+  background_colour "213 244 248" # OS OpenMap Local Water Blue
+  extension "os_om_local_png"
 end

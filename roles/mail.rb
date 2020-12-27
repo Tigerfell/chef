@@ -18,7 +18,13 @@ default_attributes(
     :daemon_smtp_ports => [25, 26],
     :certificate_names => [
       "mail.openstreetmap.org",
-      "a.mx.openstreetmap.org"
+      "a.mx.openstreetmap.org",
+      "a.mx.osm.org",
+      "a.mx.openstreetmap.com",
+      "a.mx.openstreetmap.io",
+      "a.mx.openstreetmap.pro",
+      "a.mx.openstreetmaps.org",
+      "a.mx.osm.io"
     ],
     :smarthost_name => "mail.openstreetmap.org",
     :smarthost_via => false,
@@ -34,16 +40,15 @@ default_attributes(
         :domains => ["otrs.openstreetmap.org"],
         :host => "ridley.ucl.openstreetmap.org"
       },
-      :tickets => {
-        :comment => "tickets.openstreetmap.org",
-        :domains => ["tickets.openstreetmap.org"],
-        :host => "ridley.ucl.openstreetmap.org"
-      },
       :join => {
         :comment => "join.osmfoundation.org",
         :domains => ["join.osmfoundation.org"],
         :host => "ridley.ucl.openstreetmap.org"
       }
+    },
+    :dkim_selectors => {
+      "openstreetmap.org" => "20200301",
+      "osmfoundation.org" => "20201112"
     },
     :aliases => {
       "abuse" => "root",
@@ -68,7 +73,8 @@ default_attributes(
       "support" => "support@otrs.openstreetmap.org",
       "memorial" => "communication@osmfoundation.org",
       "legal" => "legal@osmfoundation.org",
-      "dmca" => "dmca@osmfoundation.org"
+      "dmca" => "dmca@osmfoundation.org",
+      "program-sotm" => "sotm-program@otrs.openstreetmap.org"
     },
     :private_aliases => "mail"
   },
@@ -86,5 +92,6 @@ default_attributes(
 
 run_list(
   "recipe[clamav]",
+  "recipe[exim]",
   "recipe[spamassassin]"
 )

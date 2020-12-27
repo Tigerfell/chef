@@ -23,26 +23,35 @@ include_recipe "networking"
 package "openssh-client"
 package "openssh-server"
 
+template "/etc/ssh/sshd_config.d/chef.conf" do
+  source "sshd_config.conf.erb"
+  owner "root"
+  group "root"
+  mode "644"
+  notifies :restart, "service[ssh]"
+  only_if { Dir.exist?("/etc/ssh/sshd_config.d") }
+end
+
 service "ssh" do
   action [:enable, :start]
   supports :status => true, :restart => true, :reload => true
 end
 
 hosts = search(:node, "networking:interfaces").sort_by { |n| n[:hostname] }.collect do |node|
-  names = [node[:hostname]]
+  name = node.name.split(".").first
 
-  node.interfaces(:role => :external).each do |interface|
-    names |= ["#{node[:hostname]}.openstreetmap.org"]
-    names |= ["#{node[:hostname]}.#{interface[:zone]}.openstreetmap.org"]
-  end
+  names = [name]
 
   unless node.interfaces(:role => :internal).empty?
-    names |= ["#{node[:hostname]}.#{node[:networking][:roles][:external][:zone]}.openstreetmap.org"]
+    names.unshift("#{name}.#{node[:networking][:roles][:external][:zone]}.openstreetmap.org")
+  end
+
+  unless node.interfaces(:role => :external).empty?
+    names.unshift("#{name}.openstreetmap.org")
   end
 
   keys = {
-    "ssh-rsa" => node[:keys][:ssh][:host_rsa_public],
-    "ssh-dss" => node[:keys][:ssh][:host_dsa_public]
+    "ssh-rsa" => node[:keys][:ssh][:host_rsa_public]
   }
 
   if node[:keys][:ssh][:host_ecdsa_public]
@@ -56,22 +65,15 @@ hosts = search(:node, "networking:interfaces").sort_by { |n| n[:hostname] }.coll
   end
 
   Hash[
-    :names => names.sort,
+    :names => names,
     :addresses => node.ipaddresses.sort,
     :keys => keys
   ]
 end
 
-template "/etc/ssh/ssh_config" do
-  source "ssh_config.erb"
-  mode 0o644
-  owner "root"
-  group "root"
-end
-
 template "/etc/ssh/ssh_known_hosts" do
   source "ssh_known_hosts.erb"
-  mode 0o444
+  mode "444"
   owner "root"
   group "root"
   backup false

@@ -17,22 +17,35 @@
 # limitations under the License.
 #
 
+include_recipe "accounts"
 include_recipe "apache"
 
 package %w[
   trac
-  trac-git
   ruby
 ]
 
 site_name = "trac.openstreetmap.org"
 site_directory = "/srv/#{site_name}"
 
+directory "/var/lib/trac" do
+  owner "trac"
+  group "trac"
+  mode "755"
+end
+
+execute "trac-initenv-#{site_name}" do
+  command "trac-admin /var/lib/trac initenv #{site_name} sqlite:db/trac.db"
+  user "trac"
+  group "trac"
+  not_if { ::File.exist?("/var/lib/trac/VERSION") }
+end
+
 template "/var/lib/trac/conf/trac.ini" do
   source "trac.ini.erb"
   owner "trac"
   group "www-data"
-  mode 0o644
+  mode "644"
   variables :name => site_name
 end
 
@@ -40,10 +53,10 @@ remote_directory "/var/lib/trac/htdocs" do
   source "htdocs"
   owner "trac"
   group "trac"
-  mode 0o755
+  mode "755"
   files_owner "trac"
   files_group "trac"
-  files_mode 0o644
+  files_mode "644"
   purge true
 end
 
@@ -51,10 +64,10 @@ remote_directory "/var/lib/trac/templates" do
   source "templates"
   owner "trac"
   group "trac"
-  mode 0o755
+  mode "755"
   files_owner "trac"
   files_group "trac"
-  files_mode 0o644
+  files_mode "644"
   purge true
 end
 
@@ -62,16 +75,20 @@ execute "trac-deploy-#{site_name}" do
   command "trac-admin /var/lib/trac deploy #{site_directory}"
   user "root"
   group "root"
-  not_if { File.exist?(site_directory) }
+  not_if { ::File.exist?(site_directory) }
 end
 
 cookbook_file "/usr/local/bin/trac-authenticate" do
   owner "root"
   group "root"
-  mode 0o755
+  mode "755"
 end
 
 apache_module "wsgi"
+
+apache_module "authnz_external" do
+  package "libapache2-mod-authnz-external"
+end
 
 ssl_certificate "trac.openstreetmap.org" do
   domains ["trac.openstreetmap.org", "trac.osm.org"]
@@ -88,12 +105,12 @@ template "/etc/sudoers.d/trac" do
   source "sudoers.erb"
   owner "root"
   group "root"
-  mode 0o440
+  mode "440"
 end
 
 template "/etc/cron.daily/trac-backup" do
   source "backup.cron.erb"
   owner "root"
   group "root"
-  mode 0o755
+  mode "755"
 end

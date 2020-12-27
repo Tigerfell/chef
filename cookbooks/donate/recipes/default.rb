@@ -17,21 +17,22 @@
 # limitations under the License.
 #
 
+include_recipe "accounts"
 include_recipe "apache"
-include_recipe "mysql"
 include_recipe "git"
+include_recipe "mysql"
+include_recipe "php::fpm"
 
 package %w[
-  php
   php-cli
   php-curl
   php-mysql
   php-gd
 ]
 
-apache_module "php7.2"
-
 apache_module "headers"
+apache_module "proxy"
+apache_module "proxy_fcgi"
 
 passwords = data_bag_item("donate", "passwords")
 
@@ -48,12 +49,13 @@ end
 directory "/srv/donate.openstreetmap.org" do
   owner "donate"
   group "donate"
-  mode 0o755
+  mode "755"
 end
 
 git "/srv/donate.openstreetmap.org" do
   action :sync
-  repository "git://github.com/osmfoundation/donation-drive.git"
+  repository "https://github.com/osmfoundation/donation-drive.git"
+  depth 1
   user "donate"
   group "donate"
 end
@@ -61,14 +63,14 @@ end
 directory "/srv/donate.openstreetmap.org/data" do
   owner "donate"
   group "donate"
-  mode 0o755
+  mode "755"
 end
 
 template "/srv/donate.openstreetmap.org/scripts/db-connect.inc.php" do
   source "db-connect.inc.php.erb"
   owner "root"
   group "donate"
-  mode 0o644
+  mode "644"
   variables :passwords => passwords
 end
 
@@ -78,22 +80,26 @@ ssl_certificate "donate.openstreetmap.org" do
   notifies :reload, "service[apache2]"
 end
 
+php_fpm "donate.openstreetmap.org" do
+  php_admin_values "open_basedir" => "/srv/donate.openstreetmap.org/:/usr/share/php/:/tmp/",
+                   "disable_functions" => "exec,shell_exec,system,passthru,popen,proc_open"
+  prometheus_port 11101
+end
+
 apache_site "donate.openstreetmap.org" do
   template "apache.erb"
 end
 
-template "/etc/cron.d/osmf-donate" do
-  source "cron.erb"
-  owner "root"
-  group "root"
-  mode 0o600
-  variables :passwords => passwords
+cron_d "osmf-donate" do
+  minute "*/2"
+  user "donate"
+  command "cd /srv/donate.openstreetmap.org/scripts/; /usr/bin/php /srv/donate.openstreetmap.org/scripts/update_csv_donate2016.php"
 end
 
 template "/etc/cron.daily/osmf-donate-backup" do
   source "backup.cron.erb"
   owner "root"
   group "root"
-  mode 0o750
+  mode "750"
   variables :passwords => passwords
 end

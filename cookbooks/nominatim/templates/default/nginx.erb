@@ -1,0 +1,215 @@
+upstream nominatim_service {
+  server unix:/run/php/nominatim.openstreetmap.org.sock;
+}
+
+map $uri $nominatim_script_name {
+    ~^(.+?\.php)         $1;
+    ~^/([^/]+)           $1.php;
+    ^$                   search.php;
+}
+
+map $uri $nominatim_path_info {
+    ~^/([^/]+)(.*)$      $2;
+}
+
+map $args $format {
+    default                  default;
+    ~(^|&)format=html(&|$)   html;
+    ~(^|&)format=            other;
+}
+
+map $uri/$format $forward_to_ui {
+    default               1;
+    ~^/ui                 0;
+    ~/other$              0;
+    ~/reverse.*/default   0;
+    ~/lookup.*/default    0;
+}
+
+map $query_string $email_id {
+    ~(^|&)email=([^&]+)  $2;
+}
+
+map $email_id $missing_email {
+    default "";
+    "" 1;
+}
+
+map $http_user_agent $missing_ua {
+    default "";
+    "" 1;
+}
+
+map $http_referer $missing_referer {
+    default "";
+    "" 1;
+}
+
+# Whitelisted IPs
+geo $whitelisted {
+    default 0;
+<% @frontends.each do |frontend| -%>
+<% frontend.ipaddresses(:role => :external).sort.each do |address| -%>
+    <%= address %> 1;
+<% end -%>
+<% end -%>
+    46.235.224.148 1;
+    209.132.180.180 1;
+    209.132.180.168 1;
+    8.43.85.23 1; # gnome
+}
+
+map $missing_email$missing_referer$http_user_agent $blocked_user_agent {
+   default 0;
+   "11" 2; # block any requests without identifier
+   include <%= @confdir %>/nginx_blocked_user_agent.conf;
+}
+
+map $missing_email$missing_ua$http_referer $blocked_referrer {
+   default 0;
+   include <%= @confdir %>/nginx_blocked_referrer.conf;
+}
+
+map $missing_referer$missing_ua$email_id $blocked_email {
+   default 0;
+   include <%= @confdir %>/nginx_blocked_email.conf;
+}
+
+map $whitelisted $limit_www {
+    1 "";
+    0 $binary_remote_addr;
+}
+
+map $blocked_user_agent $limit_tarpit {
+    0 "";
+    1 $binary_remote_addr;
+    2 $binary_remote_addr;
+}
+
+map $missing_email$missing_referer$http_user_agent $generic_mozilla {
+    default 0;
+    ~^11Mozilla/4.0 1;
+    ~^11Mozilla/5.0 2;
+}
+
+map $whitelisted$generic_mozilla$uri $limit_reverse {
+    default "";
+    ~01/reverse.*  $binary_remote_addr;
+    ~02/reverse.*  $binary_remote_addr;
+}
+
+limit_req_zone $limit_www zone=www:50m rate=2r/s;
+limit_req_zone $limit_tarpit zone=tarpit:10m rate=1r/s;
+limit_req_zone $binary_remote_addr zone=blocked:10m rate=20r/m;
+limit_req_zone $limit_reverse zone=reverse:10m rate=10r/m;
+
+server {
+    listen 80 default_server;
+    listen [::]:80 default_server;
+
+    access_log <%= node[:nominatim][:logdir] %>/nominatim.openstreetmap.org-access.log combined;
+    error_log <%= node[:nominatim][:logdir] %>/nominatim.openstreetmap.org-error.log;
+
+    location /nginx_status {
+        stub_status on;
+        access_log   off;
+        allow 127.0.0.1;
+        allow ::1;
+        deny all;
+    }
+
+     rewrite ^/\.well-known/acme-challenge/(.*)$ http://acme.openstreetmap.org/.well-known/acme-challenge/$1 permanent;
+
+     location / {
+         return 301 https://$host$request_uri;
+     }
+}
+
+server {
+    # IPv4
+    listen       443 ssl deferred backlog=16384 reuseport http2 default_server;
+    # IPv6
+    listen       [::]:443 ssl deferred backlog=16384 reuseport http2 default_server;
+    server_name  localhost;
+
+    ssl_certificate /etc/ssl/certs/<%= node[:fqdn] %>.pem;
+    ssl_certificate_key /etc/ssl/private/<%= node[:fqdn] %>.key;
+
+    root <%= @directory %>/website;
+    index search.php;
+
+    access_log <%= node[:nominatim][:logdir] %>/nominatim.openstreetmap.org-access.log combined;
+    error_log <%= node[:nominatim][:logdir] %>/nominatim.openstreetmap.org-error.log;
+
+    location /nginx_status {
+        stub_status on;
+        access_log   off;
+        allow 127.0.0.1;
+        allow ::1;
+        deny all;
+    }
+
+    error_page 403 /403.html;
+    location /403.html {
+        limit_req zone=blocked burst=5;
+    }
+
+    error_page 429 /509.html;
+    location /509.html {
+        limit_req zone=blocked burst=5;
+    }
+
+    location / {
+        try_files $uri $uri/ @php;
+    }
+
+    location /ui/ {
+        alias <%= @ui_directory %>/dist/;
+        index search.html;
+    }
+
+    location @php {
+        if ($blocked_user_agent ~ ^2$)
+        { return 403; }
+        if ($blocked_referrer)
+        { return 403; }
+        if ($blocked_email)
+        { return 403; }
+        include <%= @confdir %>/nginx_blocked_generic.conf;
+
+        limit_req zone=www burst=10;
+        limit_req zone=tarpit burst=2;
+        limit_req zone=reverse burst=5;
+        limit_req_status 429;
+        fastcgi_pass nominatim_service;
+        include fastcgi_params;
+        fastcgi_param QUERY_STRING    $args;
+        fastcgi_param PATH_INFO       "$nominatim_path_info";
+        fastcgi_param SCRIPT_FILENAME  "$document_root/$nominatim_script_name";
+        if ($forward_to_ui) {
+            rewrite ^(/[^/]*) https://$host/ui$1.html redirect;
+        }
+    }
+
+    location ~* \.php$ {
+        if ($blocked_user_agent ~ ^2$)
+        { return 403; }
+        if ($blocked_referrer)
+        { return 403; }
+        if ($blocked_email)
+        { return 403; }
+        include <%= @confdir %>/nginx_blocked_generic.conf;
+
+        limit_req zone=www burst=10;
+        limit_req zone=tarpit burst=2;
+        limit_req zone=reverse burst=5;
+        limit_req_status 429;
+        fastcgi_pass    nominatim_service;
+        include         fastcgi_params;
+        fastcgi_param   SCRIPT_FILENAME    $document_root$fastcgi_script_name;
+
+        if ($forward_to_ui) {
+            rewrite (.*).php https://$host/ui$1.html redirect;
+        }
+    }
+}

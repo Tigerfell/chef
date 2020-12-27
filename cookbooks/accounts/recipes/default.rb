@@ -19,7 +19,7 @@
 
 package "zsh"
 
-administrators = []
+administrators = node[:accounts][:administrators].to_a
 
 search(:accounts, "*:*").each do |account|
   name = account["id"]
@@ -39,9 +39,15 @@ search(:accounts, "*:*").each do |account|
       user_shell = details[:shell] || account["shell"] || node[:accounts][:shell]
     end
 
+    available_users = if node[:etc]
+                        node[:etc][:passwd].keys
+                      else
+                        []
+                      end
+
     group name.to_s do
       gid account["uid"].to_i
-      members group_members & node[:etc][:passwd].keys
+      members group_members & available_users
     end
 
     user name.to_s do
@@ -58,18 +64,16 @@ search(:accounts, "*:*").each do |account|
       source name.to_s
       owner name.to_s
       group name.to_s
-      mode 0o755
+      mode "755"
       files_owner name.to_s
       files_group name.to_s
-      files_mode 0o644
+      files_mode "644"
       only_if do
-        begin
-          cookbook = run_context.cookbook_collection[cookbook_name]
-          files = cookbook.relative_filenames_in_preferred_directory(node, :files, name.to_s)
-          !files.empty?
-        rescue Chef::Exceptions::FileNotFound
-          false
-        end
+        cookbook = run_context.cookbook_collection[cookbook_name]
+        files = cookbook.relative_filenames_in_preferred_directory(node, :files, name.to_s)
+        !files.empty?
+      rescue Chef::Exceptions::FileNotFound
+        false
       end
     end
 

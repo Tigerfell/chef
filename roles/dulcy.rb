@@ -10,7 +10,7 @@ default_attributes(
         :family => :inet,
         :address => "10.0.48.9",
         :bond => {
-          :slaves => %w[p18p1 p18p2]
+          :slaves => %w[ens18f0 ens18f1]
         }
       },
       :external_ipv4 => {
@@ -28,7 +28,7 @@ default_attributes(
     }
   },
   :postgresql => {
-    :versions => ["10"],
+    :versions => ["13"],
     :settings => {
       :defaults => {
         :work_mem => "300MB",
@@ -36,7 +36,7 @@ default_attributes(
         :random_page_cost => "1.5",
         :effective_cache_size => "60GB",
         :fsync => "on",
-        :effective_io_concurrency => "3"
+        :effective_io_concurrency => "500"
       }
     }
   },
@@ -45,8 +45,8 @@ default_attributes(
     :enable_backup => false,
     :enable_git_updates => true,
     :dbadmins => %w[lonvia tomh],
-    :dbcluster => "10/main",
-    :postgis => "2.4",
+    :dbcluster => "13/main",
+    :postgis => "3",
     :flatnode_file => "/ssd/nominatim/nodes.store",
     :logdir => "/ssd/nominatim/log",
     :tablespaces => {

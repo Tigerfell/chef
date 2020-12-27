@@ -8,18 +8,7 @@ default_attributes(
     }
   },
   :hosted_by => "GRNET",
-  :location => "Athens, Greece",
-  :networking => {
-    :nameservers => [
-      "8.8.8.8",
-      "8.8.4.4"
-    ],
-    :roles => {
-      :external => {
-        :zone => "grn"
-      }
-    }
-  }
+  :location => "Athens, Greece"
 )
 
 override_attributes(

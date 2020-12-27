@@ -9,23 +9,12 @@ default_attributes(
   },
   :hosted_by => "TeraSwitch Networks",
   :location => "Pittsburgh, Pennsylvania",
-  :timezone => "EST5EDT",
-  :networking => {
-    :nameservers => [
-      "1.1.1.1",
-      "8.8.8.8"
-    ],
-    :roles => {
-      :external => {
-        :zone => "osm"
-      }
-    }
-  }
+  :timezone => "EST5EDT"
 )
 
 override_attributes(
   :ntp => {
-    :servers => ["0.us.pool.ntp.org", "1.us.pool.ntp.org", "america.pool.ntp.org"]
+    :servers => ["0.us.pool.ntp.org", "1.us.pool.ntp.org", "north-america.pool.ntp.org"]
   }
 )
 

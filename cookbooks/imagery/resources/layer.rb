@@ -23,8 +23,8 @@ default_action :create
 
 property :layer, String, :name_property => true
 property :site, String, :required => true
-property :source, String, :required => true
-property :root_layer, [TrueClass, FalseClass], :default => false
+property :source, String, :required => [:create]
+property :root_layer, [true, false], :default => false
 property :title, String
 property :copyright, String, :default => "Copyright"
 property :projection, String, :default => "EPSG:3857"
@@ -37,14 +37,14 @@ property :extension, String, :default => "png"
 property :max_zoom, Integer, :default => 18
 property :url_aliases, [String, Array], :default => []
 property :revision, Integer, :default => 0
-property :overlay, [TrueClass, FalseClass], :default => false
-property :default_layer, [TrueClass, FalseClass], :default => false
+property :overlay, [true, false], :default => false
+property :default_layer, [true, false], :default => false
 
 action :create do
   file "/srv/imagery/layers/#{new_resource.site}/#{new_resource.layer}.yml" do
     owner "root"
     group "root"
-    mode 0o644
+    mode "644"
     content YAML.dump(:name => new_resource.layer,
                       :title => new_resource.title || new_resource.layer,
                       :url => "//{s}.#{new_resource.site}/layer/#{new_resource.layer}/{z}/{x}/{y}.png",
@@ -59,7 +59,7 @@ action :create do
     source "mapserver.map.erb"
     owner "root"
     group "root"
-    mode 0o644
+    mode "644"
     variables new_resource.to_hash
   end
 
@@ -76,7 +76,7 @@ action :create do
   directory "/srv/imagery/nginx/#{new_resource.site}" do
     owner "root"
     group "root"
-    mode 0o755
+    mode "755"
     recursive true
   end
 
@@ -85,7 +85,7 @@ action :create do
     source "nginx_imagery_layer_fragment.conf.erb"
     owner "root"
     group "root"
-    mode 0o644
+    mode "644"
     variables new_resource.to_hash
   end
 end
@@ -114,6 +114,5 @@ end
 
 def after_created
   notifies :create, "imagery_site[#{site}]"
-  notifies :reload, "service[nginx]"
-  # notifies :restart, "service[mapserv-fcgi-#{site}]"
+  notifies :restart, "service[nginx]"
 end

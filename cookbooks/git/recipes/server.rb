@@ -17,6 +17,10 @@
 # limitations under the License.
 #
 
+node.default[:accounts][:users][:git][:status] = :role
+
+include_recipe "accounts"
+include_recipe "apt"
 include_recipe "networking"
 
 git_directory = node[:git][:directory]
@@ -24,19 +28,19 @@ git_directory = node[:git][:directory]
 directory git_directory do
   owner "root"
   group "root"
-  mode 0o775
+  mode "775"
 end
 
 directory "#{git_directory}/public" do
   owner node[:git][:public_user]
   group node[:git][:public_group]
-  mode 0o2775
+  mode "2775"
 end
 
 directory "#{git_directory}/private" do
   owner node[:git][:private_user]
   group node[:git][:private_group]
-  mode 0o2775
+  mode "2775"
 end
 
 Dir.glob("#{git_directory}/*/*.git").each do |repository|
@@ -44,7 +48,7 @@ Dir.glob("#{git_directory}/*/*.git").each do |repository|
     source "post-update.erb"
     owner "root"
     group node[:git][:group]
-    mode 0o755
+    mode "755"
   end
 end
 
@@ -52,5 +56,5 @@ template "/etc/cron.daily/git-backup" do
   source "backup.cron.erb"
   owner "root"
   group "root"
-  mode 0o755
+  mode "755"
 end

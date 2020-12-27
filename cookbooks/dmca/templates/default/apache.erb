@@ -51,4 +51,8 @@
 
 <Directory <%= @directory %>/html>
   Require all granted
+
+  <FilesMatch ".+\.ph(ar|p|tml)$">
+    SetHandler "proxy:unix:/run/php/<%= @name %>.sock|fcgi://127.0.0.1"
+  </FilesMatch>
 </Directory>

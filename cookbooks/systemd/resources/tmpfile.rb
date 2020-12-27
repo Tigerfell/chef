@@ -19,7 +19,7 @@
 
 default_action :create
 
-property :type, String, :required => true
+property :type, String, :required => [:create]
 property :path, String, :name_property => true
 property :mode, String, :default => "-"
 property :owner, String, :default => "-"
@@ -33,8 +33,8 @@ action :create do
     source "tmpfile.erb"
     owner "root"
     group "root"
-    mode 0o644
-    variables new_resource.to_hash
+    mode "644"
+    variables new_resource.to_hash.merge(:path => new_resource.path)
   end
 
   execute "systemd-tmpfiles" do

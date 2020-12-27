@@ -55,33 +55,6 @@ default_attributes(
       }
     }
   },
-  :openvpn => {
-    :address => "10.0.16.2",
-    :tunnels => {
-      :ic2ucl => {
-        :port => "1194",
-        :mode => "server",
-        :peer => {
-          :host => "ridley.openstreetmap.org"
-        }
-      },
-      :aws2ic => {
-        :port => "1195",
-        :mode => "server",
-        :peer => {
-          :host => "fafnir.openstreetmap.org"
-        }
-      },
-      :ic2bm => {
-        :port => "1196",
-        :mode => "client",
-        :peer => {
-          :host => "grisu.openstreetmap.org",
-          :port => "1194"
-        }
-      }
-    }
-  },
   :planet => {
     :replication => "enabled"
   },
@@ -136,9 +109,7 @@ run_list(
   "role[backup]",
   "role[planet]",
   "role[planetdump]",
-  "role[logstash]",
   "recipe[rsyncd]",
   "recipe[dhcpd]",
-  "recipe[openvpn]",
   "recipe[tilelog]"
 )

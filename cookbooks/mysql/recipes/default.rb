@@ -17,6 +17,9 @@
 # limitations under the License.
 #
 
+include_recipe "munin"
+include_recipe "prometheus"
+
 package "mysql-server"
 package "mysql-client"
 
@@ -29,7 +32,7 @@ template "/etc/mysql/mysql.conf.d/zzz-chef.cnf" do
   source "my.cnf.erb"
   owner "root"
   group "root"
-  mode 0o644
+  mode "644"
   notifies :restart, "service[mysql]"
 end
 
@@ -56,4 +59,17 @@ end
   munin_plugin "mysql_#{stat}" do
     action :delete
   end
+end
+
+mysql_password = persistent_token("mysql", "prometheus", "password")
+
+mysql_user "prometheus" do
+  password mysql_password
+  process true
+  repl_client true
+end
+
+prometheus_exporter "mysqld" do
+  port 9104
+  environment "DATA_SOURCE_NAME" => "prometheus:#{mysql_password}@(localhost:3306)/"
 end

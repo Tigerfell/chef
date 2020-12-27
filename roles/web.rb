@@ -5,7 +5,6 @@ default_attributes(
   :accounts => {
     :users => {
       :rails => {
-        :status => :role,
         :members => [:tomh, :grant]
       }
     }
@@ -18,7 +17,7 @@ default_attributes(
   },
   :web => {
     :status => "online",
-    :memcached_servers => %w[rails1.ams rails2.ams rails3.ams]
+    :memcached_servers => %w[spike-06.ams spike-07.ams spike-08.ams]
   }
 )
 

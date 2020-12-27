@@ -18,44 +18,49 @@
 #
 
 node.default[:incron][:planetdump] = {
-  :user => "www-data",
+  :user => "root",
   :path => "/store/backup",
   :events => %w[IN_CREATE IN_MOVED_TO],
-  :command => "/usr/local/bin/planetdump $#"
+  :command => "/bin/systemctl start planetdump@$#"
 }
 
 include_recipe "git"
 include_recipe "incron"
 
-package "gcc"
-package "make"
-package "autoconf"
-package "automake"
-package "libxml2-dev"
-package "libboost-dev"
-package "libboost-program-options-dev"
-package "libboost-date-time-dev"
-package "libboost-filesystem-dev"
-package "libboost-thread-dev"
-package "libboost-iostreams-dev"
-package "libosmpbf-dev"
-package "libprotobuf-dev"
-package "osmpbf-bin"
-
-# Add planet-mirror-redirect-update dependencies
-package "php-cli"
-package "php-curl"
+package %w[
+  gcc
+  g++
+  make
+  autoconf
+  automake
+  pkg-config
+  libxml2-dev
+  libboost-dev
+  libboost-program-options-dev
+  libboost-date-time-dev
+  libboost-filesystem-dev
+  libboost-thread-dev
+  libboost-iostreams-dev
+  libosmpbf-dev
+  libprotobuf-dev
+  osmpbf-bin
+  pbzip2
+  php-cli
+  php-curl
+  mktorrent
+]
 
 directory "/opt/planet-dump-ng" do
   owner "root"
   group "root"
-  mode 0o755
+  mode "755"
 end
 
 git "/opt/planet-dump-ng" do
   action :sync
-  repository "git://github.com/zerebubuth/planet-dump-ng.git"
-  revision "v1.1.6"
+  repository "https://github.com/zerebubuth/planet-dump-ng.git"
+  revision "v1.2.0"
+  depth 1
   user "root"
   group "root"
 end
@@ -90,7 +95,8 @@ end
 directory "/store/planetdump" do
   owner "www-data"
   group "www-data"
-  mode 0o755
+  mode "755"
+  recursive true
 end
 
 %w[planetdump planet-mirror-redirect-update].each do |program|
@@ -98,13 +104,26 @@ end
     source "#{program}.erb"
     owner "root"
     group "root"
-    mode 0o755
+    mode "755"
   end
 end
 
-template "/etc/cron.d/planet-dump-mirror" do
-  source "planet-dump-mirror-cron.erb"
-  owner "root"
-  group "root"
-  mode 0o644
+systemd_service "planetdump@" do
+  description "Planet dump for %i"
+  user "www-data"
+  exec_start "/usr/local/bin/planetdump %i"
+  memory_max "64G"
+  private_tmp true
+  private_devices true
+  private_network true
+  protect_system "full"
+  protect_home true
+  no_new_privileges true
+end
+
+cron_d "planet-dump-mirror" do
+  minute "*/10"
+  user "www-data"
+  command "/usr/local/bin/planet-mirror-redirect-update"
+  mailto "horntail-www-data-cron@firefishy.com"
 end

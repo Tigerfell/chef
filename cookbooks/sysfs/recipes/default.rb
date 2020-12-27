@@ -30,11 +30,11 @@ else
     supports :status => false, :restart => true, :reload => false
   end
 
-  template "/etc/sysfs.conf" do
+  template "/etc/sysfs.d/99-chef.conf" do
     source "sysfs.conf.erb"
     owner "root"
     group "root"
-    mode 0o644
+    mode "644"
     notifies :restart, "service[sysfsutils]"
   end
 

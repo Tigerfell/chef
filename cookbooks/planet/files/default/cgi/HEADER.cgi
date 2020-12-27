@@ -10,7 +10,7 @@ def nice_size(file):
     MB = 1024. * KB
     GB = 1024. * MB
     TB = 1024. * GB
-    
+
     if size < KB:
         size, suffix = size, ''
     elif size < MB:
@@ -21,7 +21,7 @@ def nice_size(file):
         size, suffix = size/GB, 'GB'
     else:
         size, suffix = size/TB, 'TB'
-    
+
     if size < 10:
         return '%.1f %s' % (round(size,1), suffix)
     else:
@@ -44,11 +44,12 @@ def nice_time(time):
     return '%d months' % (time / 2592000.)
 
 def file_info(file, name):
+    torrent_file = file + '.torrent'
     size = nice_size(file)
     hash = search(r'\w{32}', open(file+'.md5', 'r').read()).group(0)
     date = nice_time(time() - stat(file).st_mtime)
 
-    return '<b><a href="%(file)s">%(name)s</a></b><br><b>%(size)s</b>, created %(date)s ago.<br><small>md5: %(hash)s</small>.' % locals()
+    return '<b><a href="%(file)s">%(name)s</a> (<a href="%(torrent_file)s">torrent</a>)</b><br><b>%(size)s</b>, created %(date)s ago.<br><small>md5: %(hash)s</small>.' % locals()
 
 planet_link = file_info('planet/planet-latest.osm.bz2', 'Latest Weekly Planet XML File')
 changesets_link = file_info('planet/changesets-latest.osm.bz2', 'Latest Weekly Changesets')
@@ -59,17 +60,17 @@ print """
 <html>
  <head>
   <title>Index of /</title>
-  <link href="style.css" rel="stylesheet" type="text/css">
+  <link href="https://planet.openstreetmap.org/style.css" rel="stylesheet" type="text/css">
  </head>
  <body>
-<img id="logo" src="logo.png" alt="OSM logo" width="128" height="128">
+<img id="logo" src="https://planet.openstreetmap.org/logo.png" alt="OSM logo" width="128" height="128">
 <h1>Planet OSM</h1>
 
 <p>
 The files found here are regularly-updated, complete copies of the OpenStreetMap.org
 database, and those published before the 12 September 2012 are distributed under a Creative Commons Attribution-ShareAlike 2.0 license, those published after are  Open Data Commons Open Database License 1.0 licensed. For more information, <a href="https://wiki.openstreetmap.org/wiki/Planet.osm">see the project wiki</a>.
 </p>
-
+<p><div class="alert"><strong>WARNING</strong> Download speeds are currently restricted to 4096 KB/s due to limited available capacity on our Internet connection. <a href="https://wiki.openstreetmap.org/wiki/Planet.osm#BitTorrent">Please use torrents</a> or <a href="https://wiki.openstreetmap.org/wiki/Planet.osm#Planet.osm_mirrors">a mirror</a> if possible.</div></p>
 <table id="about">
   <tr>
     <th>
@@ -101,8 +102,8 @@ database, and those published before the 12 September 2012 are distributed under
     </td>
     <td>
         <p>
-        You are granted permission to use OpenStreetMap data by 
-        <a href="https://osm.org/copyright">the OpenStreetMap License</a>, which also describes 
+        You are granted permission to use OpenStreetMap data by
+        <a href="https://osm.org/copyright">the OpenStreetMap License</a>, which also describes
         your obligations.
         </p>
         <p>
@@ -113,9 +114,8 @@ database, and those published before the 12 September 2012 are distributed under
         is a tool for importing the data into a Postgis database for rendering maps.
         </p>
         <p>
-        <a href="https://wiki.openstreetmap.org/wiki/Coastline_error_checker">Processed coastline data</a>
-        derived from OSM data is also needed for rendering usable maps, and can be found in a
-        <a href="historical-shapefiles/processed_p.tar.bz2">single shapefile</a> (360MB).
+        <a href="https://osmdata.openstreetmap.de/">Processed coastline data</a>
+        derived from OSM data is also needed for rendering usable maps.
         </p>
     </td>
     <td>

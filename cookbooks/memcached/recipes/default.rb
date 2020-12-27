@@ -17,6 +17,9 @@
 # limitations under the License.
 #
 
+include_recipe "munin"
+include_recipe "prometheus"
+
 package "memcached"
 
 service "memcached" do
@@ -28,7 +31,7 @@ template "/etc/memcached.conf" do
   source "memcached.conf.erb"
   owner "root"
   group "root"
-  mode 0o644
+  mode "644"
   notifies :restart, "service[memcached]"
 end
 
@@ -40,4 +43,9 @@ end
   munin_plugin "memcached_multi_#{stat}" do
     target "memcached_multi_"
   end
+end
+
+prometheus_exporter "memcached" do
+  port 9150
+  options "--memcached.address=#{node[:memcached][:ip_address]}:#{node[:memcached][:tcp_port]} --memcached.pid-file=/run/memcached/memcached.pid"
 end

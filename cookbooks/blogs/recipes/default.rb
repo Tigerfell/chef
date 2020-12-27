@@ -17,6 +17,7 @@
 # limitations under the License.
 #
 
+include_recipe "accounts"
 include_recipe "apache"
 include_recipe "git"
 
@@ -25,37 +26,41 @@ package %w[
   ruby-dev
   make
   gcc
+  g++
   libsqlite3-dev
 ]
 
-gem_package "bundler"
+gem_package "bundler" do
+  version "~> 1.17.2"
+end
 
 directory "/srv/blogs.openstreetmap.org" do
   owner "blogs"
   group "blogs"
-  mode 0o755
+  mode "755"
 end
 
 git "/srv/blogs.openstreetmap.org" do
   action :sync
-  repository "git://github.com/gravitystorm/blogs.osm.org.git"
+  repository "https://github.com/gravitystorm/blogs.osm.org.git"
+  depth 1
   user "blogs"
   group "blogs"
-  notifies :run, "execute[/srv/blogs.openstreetmap.org/Gemfile]", :immediate
+  notifies :run, "execute[/srv/blogs.openstreetmap.org/Gemfile]", :immediately
 end
 
 execute "/srv/blogs.openstreetmap.org/Gemfile" do
   action :nothing
-  command "bundle install"
+  command "bundle install --deployment"
   cwd "/srv/blogs.openstreetmap.org"
-  user "root"
-  group "root"
-  notifies :run, "execute[/srv/blogs.openstreetmap.org]", :immediate
+  user "blogs"
+  group "blogs"
+  notifies :run, "execute[/srv/blogs.openstreetmap.org]", :immediately
 end
 
 execute "/srv/blogs.openstreetmap.org" do
   action :nothing
-  command "bundle exec /usr/local/bin/pluto build -t osm -o build"
+  command "bundle exec pluto build -t osm -o build"
   cwd "/srv/blogs.openstreetmap.org"
   user "blogs"
   group "blogs"
@@ -72,9 +77,16 @@ apache_site "blogs.openstreetmap.org" do
   variables :aliases => ["blogs.osm.org"]
 end
 
-template "/etc/cron.d/blogs" do
-  source "cron.erb"
+template "/usr/local/bin/blogs-update" do
+  source "blogs-update.erb"
   owner "root"
   group "root"
-  mode "0644"
+  mode "0755"
+end
+
+cron_d "blogs" do
+  minute "*/30"
+  user "blogs"
+  command "/usr/local/bin/blogs-update"
+  mailto "admins@openstreetmap.org"
 end

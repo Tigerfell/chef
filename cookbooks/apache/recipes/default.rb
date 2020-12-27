@@ -17,6 +17,8 @@
 # limitations under the License.
 #
 
+include_recipe "munin"
+include_recipe "prometheus"
 include_recipe "ssl"
 
 package %w[
@@ -49,11 +51,13 @@ template "/etc/apache2/ports.conf" do
   source "ports.conf.erb"
   owner "root"
   group "root"
-  mode 0o644
+  mode "644"
 end
 
 service "apache2" do
   action [:enable, :start]
+  retries 2
+  retry_delay 10
   supports :status => true, :restart => true, :reload => true
 end
 
@@ -91,3 +95,9 @@ end
 munin_plugin "apache_accesses"
 munin_plugin "apache_processes"
 munin_plugin "apache_volume"
+
+prometheus_exporter "apache" do
+  port 9117
+  listen_switch "telemetry.address"
+  options "--scrape_uri=http://localhost/server-status?auto"
+end

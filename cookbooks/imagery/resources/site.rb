@@ -22,28 +22,28 @@ require "yaml"
 default_action :create
 
 property :site, String, :name_property => true
-property :title, String, :required => true
+property :title, String, :required => [:create]
 property :aliases, [String, Array], :default => []
-property :bbox, Array, :required => true
+property :bbox, Array, :required => [:create]
 
 action :create do
   directory "/srv/#{new_resource.site}" do
     user "root"
     group "root"
-    mode 0o755
+    mode "755"
   end
 
   directory "/srv/imagery/layers/#{new_resource.site}" do
     user "root"
     group "root"
-    mode 0o755
+    mode "755"
     recursive true
   end
 
   directory "/srv/imagery/overlays/#{new_resource.site}" do
     user "root"
     group "root"
-    mode 0o755
+    mode "755"
     recursive true
   end
 
@@ -51,7 +51,7 @@ action :create do
     source "index.html.erb"
     user "root"
     group "root"
-    mode 0o644
+    mode "644"
     variables :title => new_resource.title
   end
 
@@ -59,28 +59,28 @@ action :create do
     source "robots.txt"
     user "root"
     group "root"
-    mode 0o644
+    mode "644"
   end
 
   cookbook_file "/srv/#{new_resource.site}/imagery.css" do
     source "imagery.css"
     user "root"
     group "root"
-    mode 0o644
+    mode "644"
   end
 
   cookbook_file "/srv/#{new_resource.site}/clientaccesspolicy.xml" do
     source "clientaccesspolicy.xml"
     user "root"
     group "root"
-    mode 0o644
+    mode "644"
   end
 
   cookbook_file "/srv/#{new_resource.site}/crossdomain.xml" do
     source "crossdomain.xml"
     user "root"
     group "root"
-    mode 0o644
+    mode "644"
   end
 
   layers = Dir.glob("/srv/imagery/layers/#{new_resource.site}/*.yml").collect do |path|
@@ -91,7 +91,7 @@ action :create do
     source "imagery.js.erb"
     user "root"
     group "root"
-    mode 0o644
+    mode "644"
     variables :bbox => new_resource.bbox, :layers => layers
   end
 
@@ -106,7 +106,7 @@ action :create do
                   "MS_ERRORFILE" => "stderr",
                   "GDAL_CACHEMAX" => "512"
       limit_nofile 16384
-      limit_cpu 60
+      limit_cpu 180
       memory_max "4G"
       user "imagery"
       group "imagery"
@@ -137,19 +137,20 @@ action :create do
   nginx_site new_resource.site do
     template "nginx_imagery.conf.erb"
     directory "/srv/imagery/#{new_resource.site}"
-    restart_nginx false
     variables new_resource.to_hash
   end
 end
 
 action :delete do
-  service "mapserv-fcgi-#{new_resource.site}" do
-    provider Chef::Provider::Service::Systemd
-    action [:stop, :disable]
-  end
+  %w[0 1 2 3 4 5 6 7].each do |index|
+    service "mapserv-fcgi-#{new_resource.site}-#{index}" do
+      provider Chef::Provider::Service::Systemd
+      action [:stop, :disable]
+    end
 
-  systemd_service "mapserv-fcgi-#{new_resource.site}" do
-    action :delete
+    systemd_service "mapserv-fcgi-#{new_resource.site}-#{index}" do
+      action :delete
+    end
   end
 
   nginx_site new_resource.site do

@@ -49,18 +49,33 @@ Group=<%= @group %>
 WorkingDirectory=<%= @working_directory %>
 <% end -%>
 <% if @exec_start_pre -%>
+<% if @dropin -%>
+ExecStartPre=
+<% end -%>
 ExecStartPre=<%= @exec_start_pre %>
 <% end -%>
 <% if @exec_start -%>
+<% if @dropin -%>
+ExecStart=
+<% end -%>
 ExecStart=<%= @exec_start %>
 <% end -%>
 <% if @exec_start_post -%>
+<% if @dropin -%>
+ExecStartPost=
+<% end -%>
 ExecStartPost=<%= @exec_start_post %>
 <% end -%>
 <% if @exec_stop -%>
+<% if @dropin -%>
+ExecStop=
+<% end -%>
 ExecStop=<%= @exec_stop %>
 <% end -%>
 <% if @exec_reload -%>
+<% if @dropin -%>
+ExecReload=
+<% end -%>
 ExecReload=<%= @exec_reload %>
 <% end -%>
 <% if @runtime_directory -%>
@@ -93,11 +108,23 @@ ProtectSystem=<%= @protect_system %>
 <% if @protect_home -%>
 ProtectHome=<%= @protect_home %>
 <% end -%>
+<% if @read_write_paths -%>
+ReadWritePaths=<%= Array(@read_write_paths).join(" ") %>
+<% end -%>
+<% if @read_only_paths -%>
+ReadOnlyPaths=<%= Array(@read_only_paths).join(" ") %>
+<% end -%>
+<% if @inaccessible_paths -%>
+InaccessiblePaths=<%= Array(@inaccessible_paths).join(" ") %>
+<% end -%>
 <% if @restrict_address_families -%>
 RestrictAddressFamilies=<%= Array(@restrict_address_families).join(" ") %>
 <% end -%>
 <% if @no_new_privileges -%>
 NoNewPrivileges=<%= @no_new_privileges %>
+<% end -%>
+<% if @tasks_max -%>
+TasksMax=<%= @tasks_max %>
 <% end -%>
 <% if @success_exit_status -%>
 SuccessExitStatus=<%= Array(@success_exit_status).join(" ") %>
@@ -110,6 +137,18 @@ TimeoutSec=<%= @timeout_sec %>
 <% end -%>
 <% if @pid_file -%>
 PIDFile=<%= @pid_file %>
+<% end -%>
+<% if @nice -%>
+Nice=<%= @nice %>
+<% end -%>
+<% if @io_scheduling_class -%>
+IOSchedulingClass=<%= @io_scheduling_class %>
+<% end -%>
+<% if @io_scheduling_priority -%>
+IOSchedulingPriority=<%= @io_scheduling_priority %>
+<% end -%>
+<% if @kill_mode -%>
+KillMode=<%= @kill_mode %>
 <% end -%>
 <% unless @dropin -%>
 

@@ -17,16 +17,18 @@
 # limitations under the License.
 #
 
+include_recipe "git"
 include_recipe "tools"
 
 package %w[
   gcc
+  g++
   make
   autoconf
   automake
   libboost-filesystem-dev
-  libboost-system-dev
   libboost-program-options-dev
+  libboost-system-dev
 ]
 
 tilelog_source_directory = node[:tilelog][:source_directory]
@@ -40,7 +42,7 @@ git tilelog_source_directory do
   revision "live"
   user "root"
   group "root"
-  notifies :run, "execute[tilelog-autogen]", :immediate
+  notifies :run, "execute[tilelog-autogen]", :immediately
 end
 
 execute "tilelog-autogen" do
@@ -49,7 +51,7 @@ execute "tilelog-autogen" do
   cwd tilelog_source_directory
   user "root"
   group "root"
-  notifies :run, "execute[tilelog-configure]", :immediate
+  notifies :run, "execute[tilelog-configure]", :immediately
 end
 
 execute "tilelog-configure" do
@@ -58,7 +60,7 @@ execute "tilelog-configure" do
   cwd tilelog_source_directory
   user "root"
   group "root"
-  notifies :run, "execute[tilelog-build]", :immediate
+  notifies :run, "execute[tilelog-build]", :immediately
 end
 
 execute "tilelog-build" do
@@ -74,17 +76,18 @@ template "/usr/local/bin/tilelog" do
   source "tilelog.erb"
   owner "root"
   group "root"
-  mode 0o755
+  mode "755"
   variables :analyze_bin => "#{tilelog_source_directory}/openstreetmap-tile-analyze",
             :input_dir => tilelog_input_directory,
             :output_dir => tilelog_output_directory
 end
 
-template "/etc/cron.d/tilelog" do
-  source "tilelog.cron.erb"
-  owner "root"
-  group "root"
-  mode 0o644
+cron_d "tilelog" do
+  minute "17"
+  hour "22"
+  user "www-data"
+  command "/usr/local/bin/tilelog"
+  mailto "zerebubuth@gmail.com"
 end
 
 # resources related to the output of the analysis and where it
@@ -92,5 +95,6 @@ end
 directory tilelog_output_directory do
   user "www-data"
   group "www-data"
-  mode 0o755
+  mode "755"
+  recursive true
 end

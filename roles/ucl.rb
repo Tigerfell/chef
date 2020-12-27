@@ -8,7 +8,10 @@ default_attributes(
       :internal => {
         :inet => {
           :prefix => "20",
-          :gateway => "10.0.0.3"
+          :gateway => "10.0.0.3",
+          :routes => {
+            "10.0.0.0/8" => { :via => "10.0.0.3" }
+          }
         }
       },
       :external => {
@@ -18,13 +21,16 @@ default_attributes(
           :gateway => "193.60.236.254"
         }
       }
+    },
+    :wireguard => {
+      :keepalive => 180
     }
   }
 )
 
 override_attributes(
   :networking => {
-    :nameservers => ["10.0.0.3", "8.8.8.8", "8.8.4.4"],
+    :nameservers => ["10.0.0.3", "1.1.1.1", "1.0.0.1"],
     :search => ["ucl.openstreetmap.org", "openstreetmap.org"]
   },
   :ntp => {

@@ -19,7 +19,7 @@
 
 default_action :create
 
-property :theme, :kind_of => String, :name_attribute => true
+property :theme, :kind_of => String, :name_property => true
 property :site, :kind_of => String, :required => true
 property :source, :kind_of => String
 property :version, :kind_of => String
@@ -34,10 +34,10 @@ action :create do
       source new_resource.source
       owner node[:wordpress][:user]
       group node[:wordpress][:group]
-      mode 0o755
+      mode "755"
       files_owner node[:wordpress][:user]
       files_group node[:wordpress][:group]
-      files_mode 0o644
+      files_mode "644"
     end
   else
     theme_repository = new_resource.repository || default_repository
@@ -47,6 +47,7 @@ action :create do
         action :sync
         repository theme_repository
         revision new_resource.revision
+        depth 1
         user node[:wordpress][:user]
         group node[:wordpress][:group]
       end

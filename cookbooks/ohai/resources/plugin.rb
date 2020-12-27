@@ -19,19 +19,26 @@
 
 default_action :create
 
-property :plugin, :kind_of => String, :name_attribute => true
-property :template, :kind_of => String, :required => true
+property :plugin, :kind_of => String, :name_property => true
+property :template, :kind_of => String, :required => [:create]
 
 action :create do
   ohai new_resource.plugin do
     action :nothing
   end
 
+  directory "/etc/chef/ohai" do
+    owner "root"
+    group "root"
+    mode "755"
+    recursive true
+  end
+
   declare_resource :template, plugin_path do
     source new_resource.template
     owner "root"
     group "root"
-    mode 0o644
+    mode "644"
     notifies :reload, "ohai[#{new_resource.plugin}]"
   end
 end

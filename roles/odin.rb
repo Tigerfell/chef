@@ -2,9 +2,6 @@ name "odin"
 description "Master role applied to odin"
 
 default_attributes(
-  :apt => {
-    :sources => ["postgresql"]
-  },
   :networking => {
     :interfaces => {
       :internal_ipv4 => {
@@ -31,7 +28,6 @@ default_attributes(
     }
   },
   :postgresql => {
-    :versions => ["10"],
     :settings => {
       :defaults => {
         :shared_buffers => "8GB",
@@ -51,10 +47,9 @@ default_attributes(
   },
   :tile => {
     :database => {
-      :cluster => "10/main",
-      :postgis => "2.4"
+      :cluster => "12/main",
+      :postgis => "3"
     },
-    :node_file => "/store/database/nodes",
     :styles => {
       :default => {
         :tile_directories => [

@@ -13,7 +13,7 @@ default_attributes(
         :family => :inet,
         :address => "10.0.32.20",
         :bond => {
-          :slaves => %w[em1 em2]
+          :slaves => %w[enp2s0f0 enp2s0f1]
         }
       },
       :external_ipv4 => {
@@ -30,32 +30,6 @@ default_attributes(
       }
     }
   },
-  :openvpn => {
-    :address => "10.0.16.5",
-    :tunnels => {
-      :ic2bm => {
-        :port => "1194",
-        :mode => "server",
-        :peer => {
-          :host => "ironbelly.openstreetmap.org"
-        }
-      },
-      :aws2bm => {
-        :port => "1195",
-        :mode => "server",
-        :peer => {
-          :host => "fafnir.openstreetmap.org"
-        }
-      },
-      :ucl2bm => {
-        :port => "1196",
-        :mode => "server",
-        :peer => {
-          :host => "ridley.openstreetmap.org"
-        }
-      }
-    }
-  },
   :planet => {
     :replication => "disabled"
   }
@@ -67,7 +41,6 @@ run_list(
   "role[gateway]",
   "role[web-storage]",
   "role[backup]",
-  "role[planet]",
-  # "role[planetdump]",
-  "recipe[openvpn]"
+  "role[planet]"
+  # "role[planetdump]"
 )

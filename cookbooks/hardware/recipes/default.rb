@@ -17,8 +17,12 @@
 # limitations under the License.
 #
 
-include_recipe "tools"
+include_recipe "apt"
+include_recipe "git"
 include_recipe "munin"
+include_recipe "prometheus"
+include_recipe "sysfs"
+include_recipe "tools"
 
 ohai_plugin "hardware" do
   template "ohai.rb.erb"
@@ -47,7 +51,7 @@ end
 
 units = []
 
-if node[:roles].include?("bytemark") || node[:roles].include?("exonetric")
+if node[:roles].include?("bytemark") || node[:roles].include?("exonetric") || node[:roles].include?("prgmr")
   units << "0"
 end
 
@@ -83,14 +87,29 @@ when "TYAN"
 when "TYAN Computer Corporation"
   units << "0"
 when "Supermicro"
-  case product
-  when "H8DGU", "X9SCD", "X7DBU", "X7DW3", "X9DR7/E-(J)LN4F", "X9DR3-F", "X9DRW", "SYS-1028U-TN10RT+", "SYS-2028U-TN24R4T+", "SYS-1029P-WTRT", "Super Server"
-    units << "1"
-  else
-    units << "0"
-  end
+  units << "1"
 when "IBM"
   units << "0"
+when "VMware, Inc."
+  package "open-vm-tools"
+
+  # Remove timeSync plugin completely
+  # https://github.com/vmware/open-vm-tools/issues/302
+  file "/usr/lib/open-vm-tools/plugins/vmsvc/libtimeSync.so" do
+    action :delete
+    notifies :restart, "service[open-vm-tools]"
+  end
+
+  # Attempt to tell Host we are not interested in timeSync
+  execute "vmware-toolbox-cmd-timesync-disable" do
+    command "/usr/bin/vmware-toolbox-cmd timesync disable"
+    ignore_failure true
+  end
+
+  service "open-vm-tools" do
+    action [:enable, :start]
+    supports :status => true, :restart => true
+  end
 end
 
 units.sort.uniq.each do |unit|
@@ -122,13 +141,14 @@ if File.exist?("/etc/default/grub")
   execute "update-grub" do
     action :nothing
     command "/usr/sbin/update-grub"
+    not_if { ENV["TEST_KITCHEN"] }
   end
 
   template "/etc/default/grub" do
     source "grub.erb"
     owner "root"
     group "root"
-    mode 0o644
+    mode "644"
     variables :units => units, :entry => grub_entry
     notifies :run, "execute[update-grub]"
   end
@@ -145,7 +165,7 @@ template "/etc/initramfs-tools/conf.d/mdadm" do
   source "initramfs-mdadm.erb"
   owner "root"
   group "root"
-  mode 0o644
+  mode "644"
   notifies :run, "execute[update-initramfs]"
 end
 
@@ -154,21 +174,20 @@ service "haveged" do
   action [:enable, :start]
 end
 
-package "ipmitool" if node[:kernel][:modules].include?("ipmi_si")
+if node[:kernel][:modules].include?("ipmi_si")
+  package "ipmitool"
+  package "freeipmi-tools"
+
+  prometheus_exporter "ipmi" do
+    port 9290
+  end
+end
 
 package "irqbalance"
-
-template "/etc/default/irqbalance" do
-  source "irqbalance.erb"
-  owner "root"
-  group "root"
-  mode 0o644
-end
 
 service "irqbalance" do
   action [:start, :enable]
   supports :status => false, :restart => true, :reload => false
-  subscribes :restart, "template[/etc/default/irqbalance]"
 end
 
 # Link Layer Discovery Protocol Daemon
@@ -181,42 +200,48 @@ end
 tools_packages = []
 status_packages = {}
 
-node[:kernel][:modules].each_key do |modname|
-  case modname
-  when "cciss"
-    tools_packages << "ssacli"
-    status_packages["cciss-vol-status"] ||= []
-  when "hpsa"
-    tools_packages << "ssacli"
-    status_packages["cciss-vol-status"] ||= []
-  when "mptsas"
-    tools_packages << "lsiutil"
-    status_packages["mpt-status"] ||= []
-  when "mpt2sas", "mpt3sas"
-    tools_packages << "sas2ircu"
-    status_packages["sas2ircu-status"] ||= []
-  when "megaraid_mm"
-    tools_packages << "megactl"
-    status_packages["megaraid-status"] ||= []
-  when "megaraid_sas"
-    tools_packages << "megacli"
-    status_packages["megaclisas-status"] ||= []
-  when "aacraid"
-    tools_packages << "arcconf"
-    status_packages["aacraid-status"] ||= []
-  when "arcmsr"
-    tools_packages << "areca"
+if node[:virtualization][:role] != "guest" ||
+   (node[:virtualization][:system] != "lxc" &&
+    node[:virtualization][:system] != "lxd" &&
+    node[:virtualization][:system] != "openvz")
+
+  node[:kernel][:modules].each_key do |modname|
+    case modname
+    when "cciss"
+      tools_packages << "ssacli"
+      status_packages["cciss-vol-status"] ||= []
+    when "hpsa"
+      tools_packages << "ssacli"
+      status_packages["cciss-vol-status"] ||= []
+    when "mptsas"
+      tools_packages << "lsiutil"
+      status_packages["mpt-status"] ||= []
+    when "mpt2sas", "mpt3sas"
+      tools_packages << "sas2ircu"
+      status_packages["sas2ircu-status"] ||= []
+    when "megaraid_mm"
+      tools_packages << "megactl"
+      status_packages["megaraid-status"] ||= []
+    when "megaraid_sas"
+      tools_packages << "megacli"
+      status_packages["megaclisas-status"] ||= []
+    when "aacraid"
+      tools_packages << "arcconf"
+      status_packages["aacraid-status"] ||= []
+    when "arcmsr"
+      tools_packages << "areca"
+    end
   end
-end
 
-node[:block_device].each do |name, attributes|
-  next unless attributes[:vendor] == "HP" && attributes[:model] == "LOGICAL VOLUME"
+  node[:block_device].each do |name, attributes|
+    next unless attributes[:vendor] == "HP" && attributes[:model] == "LOGICAL VOLUME"
 
-  if name =~ /^cciss!(c[0-9]+)d[0-9]+$/
-    status_packages["cciss-vol-status"] |= ["cciss/#{Regexp.last_match[1]}d0"]
-  else
-    Dir.glob("/sys/block/#{name}/device/scsi_generic/*").each do |sg|
-      status_packages["cciss-vol-status"] |= [File.basename(sg)]
+    if name =~ /^cciss!(c[0-9]+)d[0-9]+$/
+      status_packages["cciss-vol-status"] |= ["cciss/#{Regexp.last_match[1]}d0"]
+    else
+      Dir.glob("/sys/block/#{name}/device/scsi_generic/*").each do |sg|
+        status_packages["cciss-vol-status"] |= [File.basename(sg)]
+      end
     end
   end
 end
@@ -237,8 +262,10 @@ if tools_packages.include?("areca")
   git "/opt/areca" do
     action :sync
     repository "https://git.openstreetmap.org/private/areca.git"
+    depth 1
     user "root"
     group "root"
+    not_if { ENV["TEST_KITCHEN"] }
   end
 else
   directory "/opt/areca" do
@@ -252,7 +279,7 @@ if status_packages.include?("cciss-vol-status")
     source "cciss-vol-statusd.erb"
     owner "root"
     group "root"
-    mode 0o755
+    mode "755"
     notifies :restart, "service[cciss-vol-statusd]"
   end
 
@@ -265,6 +292,14 @@ if status_packages.include?("cciss-vol-status")
     no_new_privileges true
     notifies :restart, "service[cciss-vol-statusd]"
   end
+else
+  systemd_service "cciss-vol-statusd" do
+    action :delete
+  end
+
+  template "/usr/local/bin/cciss-vol-statusd" do
+    action :delete
+  end
 end
 
 %w[cciss-vol-status mpt-status sas2ircu-status megaraid-status megaclisas-status aacraid-status].each do |status_package|
@@ -275,7 +310,7 @@ end
       source "raid.default.erb"
       owner "root"
       group "root"
-      mode 0o644
+      mode "644"
       variables :devices => status_packages[status_package]
     end
 
@@ -314,23 +349,24 @@ intel_nvmes = nvmes.select { |pci| pci[:vendor_name] == "Intel Corporation" }
 if !intel_ssds.empty? || !intel_nvmes.empty?
   package "unzip"
 
-  intel_ssd_tool_version = "3.0.19"
+  intel_ssd_tool_version = "3.0.26"
+  intel_ssd_package_version = "#{intel_ssd_tool_version}.400-1"
 
   remote_file "#{Chef::Config[:file_cache_path]}/Intel_SSD_Data_Center_Tool_#{intel_ssd_tool_version}_Linux.zip" do
-    source "https://downloadmirror.intel.com/28639/eng/Intel_SSD_Data_Center_Tool_#{intel_ssd_tool_version}_Linux.zip"
+    source "https://downloadmirror.intel.com/29720/eng/Intel_SSD_DCT_#{intel_ssd_tool_version}_Linux.zip"
   end
 
   execute "#{Chef::Config[:file_cache_path]}/Intel_SSD_Data_Center_Tool_#{intel_ssd_tool_version}_Linux.zip" do
-    command "unzip Intel_SSD_Data_Center_Tool_#{intel_ssd_tool_version}_Linux.zip isdct_#{intel_ssd_tool_version}-1_amd64.deb"
+    command "unzip Intel_SSD_Data_Center_Tool_#{intel_ssd_tool_version}_Linux.zip isdct_#{intel_ssd_package_version}_amd64.deb"
     cwd Chef::Config[:file_cache_path]
     user "root"
     group "root"
-    not_if { File.exist?("#{Chef::Config[:file_cache_path]}/isdct_#{intel_ssd_tool_version}-1_amd64.deb") }
+    not_if { ::File.exist?("#{Chef::Config[:file_cache_path]}/isdct_#{intel_ssd_package_version}_amd64.deb") }
   end
 
   dpkg_package "isdct" do
-    version "#{intel_ssd_tool_version}-1"
-    source "#{Chef::Config[:file_cache_path]}/isdct_#{intel_ssd_tool_version}-1_amd64.deb"
+    version "#{intel_ssd_package_version}"
+    source "#{Chef::Config[:file_cache_path]}/isdct_#{intel_ssd_package_version}_amd64.deb"
   end
 end
 
@@ -351,6 +387,13 @@ disks = disks.map do |disk|
         munin = "#{device}-#{Regexp.last_match(1)}"
       elsif smart =~ %r{^.*,(\d+)/(\d+)$}
         munin = "#{device}-#{Regexp.last_match(1)}:#{Regexp.last_match(2)}"
+      end
+    elsif disk[:device]
+      device = disk[:device].sub("/dev/", "")
+      smart = disk[:smart_device]
+
+      if smart =~ /^.*,(\d+),(\d+),(\d+)$/
+        munin = "#{device}-#{Regexp.last_match(1)}:#{Regexp.last_match(2)}:#{Regexp.last_match(3)}"
       end
     end
   elsif disk[:device] =~ %r{^/dev/(nvme\d+)n\d+$}
@@ -376,18 +419,25 @@ disks = disks.compact.uniq
 if disks.count.positive?
   package "smartmontools"
 
+  template "/etc/cron.daily/update-smart-drivedb" do
+    source "update-smart-drivedb.erb"
+    owner "root"
+    group "root"
+    mode "755"
+  end
+
   template "/usr/local/bin/smartd-mailer" do
     source "smartd-mailer.erb"
     owner "root"
     group "root"
-    mode 0o755
+    mode "755"
   end
 
   template "/etc/smartd.conf" do
     source "smartd.conf.erb"
     owner "root"
     group "root"
-    mode 0o644
+    mode "644"
     variables :disks => disks
   end
 
@@ -395,13 +445,25 @@ if disks.count.positive?
     source "smartmontools.erb"
     owner "root"
     group "root"
-    mode 0o644
+    mode "644"
   end
 
-  service "smartd" do
+  service "smartmontools" do
     action [:enable, :start]
     subscribes :reload, "template[/etc/smartd.conf]"
     subscribes :restart, "template[/etc/default/smartmontools]"
+  end
+
+  template "/etc/prometheus/collectors/smart.devices" do
+    source "smart.devices.erb"
+    owner "root"
+    group "root"
+    mode "644"
+    variables :disks => disks
+  end
+
+  prometheus_collector "smart" do
+    interval "15m"
   end
 
   # Don't try and do munin monitoring of disks behind
@@ -455,7 +517,7 @@ if File.exist?("/etc/mdadm/mdadm.conf")
   file "/etc/mdadm/mdadm.conf" do
     owner "root"
     group "root"
-    mode 0o644
+    mode "644"
     content mdadm_conf
   end
 
@@ -469,7 +531,7 @@ template "/etc/modules" do
   source "modules.erb"
   owner "root"
   group "root"
-  mode 0o644
+  mode "644"
 end
 
 service "kmod" do
@@ -484,7 +546,7 @@ if node[:hardware][:watchdog]
     source "watchdog.erb"
     owner "root"
     group "root"
-    mode 0o644
+    mode "644"
     variables :module => node[:hardware][:watchdog]
   end
 
@@ -531,16 +593,24 @@ unless Dir.glob("/sys/class/hwmon/hwmon*").empty?
     source "sensors.conf.erb"
     owner "root"
     group "root"
-    mode 0o644
+    mode "644"
     notifies :run, "execute[/etc/sensors.d/chef.conf]"
   end
 end
 
 if node[:hardware][:shm_size]
+  execute "remount-dev-shm" do
+    action :nothing
+    command "/bin/mount -o remount /dev/shm"
+    user "root"
+    group "root"
+  end
+
   mount "/dev/shm" do
-    action [:mount, :enable]
+    action :enable
     device "tmpfs"
     fstype "tmpfs"
     options "rw,nosuid,nodev,size=#{node[:hardware][:shm_size]}"
+    notifies :run, "execute[remount-dev-shm]"
   end
 end

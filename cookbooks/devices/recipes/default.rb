@@ -20,18 +20,18 @@
 cookbook_file "/usr/local/bin/fixeep-82574_83.sh" do
   owner "root"
   group "root"
-  mode 0o755
+  mode "755"
 end
 
 execute "udevadm-trigger" do
   action :nothing
-  command "/sbin/udevadm trigger --action=add"
+  command "/bin/udevadm trigger --action=add"
 end
 
 template "/etc/udev/rules.d/99-chef.rules" do
   source "udev.rules.erb"
   owner "root"
   group "root"
-  mode 0o644
+  mode "644"
   notifies :run, "execute[udevadm-trigger]"
 end

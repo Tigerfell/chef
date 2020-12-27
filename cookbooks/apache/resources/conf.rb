@@ -19,9 +19,9 @@
 
 default_action [:create, :enable]
 
-property :conf, :kind_of => String, :name_attribute => true
+property :conf, :kind_of => String, :name_property => true
 property :cookbook, :kind_of => String
-property :template, :kind_of => String, :required => true
+property :template, :kind_of => String, :required => [:create]
 property :variables, :kind_of => Hash, :default => {}
 property :reload_apache, :kind_of => [TrueClass, FalseClass], :default => true
 
@@ -48,7 +48,7 @@ action_class do
       source new_resource.template
       owner "root"
       group "root"
-      mode 0o644
+      mode "644"
       variables new_resource.variables
     end
   end

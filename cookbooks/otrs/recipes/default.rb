@@ -17,26 +17,30 @@
 # limitations under the License.
 #
 
-include_recipe "tools"
-include_recipe "postgresql"
+include_recipe "accounts"
 include_recipe "apache"
+include_recipe "postgresql"
+include_recipe "tools"
 
 passwords = data_bag_item("otrs", "passwords")
 
 package "libapache2-mod-perl2"
 package "libapache2-reload-perl"
 
-package "libgd-gd2-perl"
-package "libgd-graph-perl"
-package "libgd-text-perl"
-package "libjson-xs-perl"
-package "libmail-imapclient-perl"
-package "libnet-ldap-perl"
-package "libpdf-api2-perl"
-package "libsoap-lite-perl"
-package "libyaml-libyaml-perl"
-package "libcrypt-eksblowfish-perl"
-package "libtemplate-perl"
+package %w[
+  libcrypt-eksblowfish-perl
+  libdatetime-perl
+  libgd-gd2-perl
+  libgd-graph-perl
+  libgd-text-perl
+  libjson-xs-perl
+  libmail-imapclient-perl
+  libnet-ldap-perl
+  libpdf-api2-perl
+  libsoap-lite-perl
+  libtemplate-perl
+  libyaml-libyaml-perl
+]
 
 apache_module "headers"
 
@@ -61,7 +65,7 @@ end
 
 remote_file "#{Chef::Config[:file_cache_path]}/otrs-#{version}.tar.bz2" do
   source "https://ftp.otrs.org/pub/otrs/otrs-#{version}.tar.bz2"
-  not_if { File.exist?("/opt/otrs-#{version}") }
+  not_if { ::File.exist?("/opt/otrs-#{version}") }
 end
 
 execute "untar-otrs-#{version}" do
@@ -69,7 +73,7 @@ execute "untar-otrs-#{version}" do
   cwd "/opt"
   user "root"
   group "root"
-  not_if { File.exist?("/opt/otrs-#{version}") }
+  not_if { ::File.exist?("/opt/otrs-#{version}") }
 end
 
 config = edit_file "/opt/otrs-#{version}/Kernel/Config.pm.dist" do |line|
@@ -88,7 +92,7 @@ end
 file "/opt/otrs-#{version}/Kernel/Config.pm" do
   owner user
   group "www-data"
-  mode 0o664
+  mode "664"
   content config
 end
 
@@ -104,14 +108,6 @@ execute "/opt/otrs/bin/otrs.SetPermissions.pl" do
   only_if { File.stat("/opt/otrs/README.md").uid != Etc.getpwnam("otrs").uid }
 end
 
-execute "/opt/otrs/bin/otrs.RebuildConfig.pl" do
-  action :run
-  command "/opt/otrs/bin/otrs.RebuildConfig.pl"
-  user "root"
-  group "root"
-  not_if { File.exist?("/opt/otrs/Kernel/Config/Files/ZZZAAuto.pm") }
-end
-
 execute "/opt/otrs/bin/Cron.sh" do
   action :nothing
   command "/opt/otrs/bin/Cron.sh restart"
@@ -125,7 +121,7 @@ Dir.glob("/opt/otrs/var/cron/*.dist") do |distname|
   file name do
     owner "otrs"
     group "www-data"
-    mode 0o664
+    mode "664"
     content IO.read(distname)
     notifies :run, "execute[/opt/otrs/bin/Cron.sh]"
   end
@@ -145,12 +141,12 @@ template "/etc/sudoers.d/otrs" do
   source "sudoers.erb"
   owner "root"
   group "root"
-  mode 0o440
+  mode "440"
 end
 
 template "/etc/cron.daily/otrs-backup" do
   source "backup.cron.erb"
   owner "root"
   group "root"
-  mode 0o755
+  mode "755"
 end

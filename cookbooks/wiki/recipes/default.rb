@@ -17,8 +17,6 @@
 # limitations under the License.
 #
 
-# include_recipe "squid"
-
 include_recipe "mediawiki"
 
 passwords = data_bag_item("wiki", "passwords")
@@ -34,6 +32,12 @@ mediawiki_site "wiki.openstreetmap.org" do
            "wiki.openstreetmap.ca", "wiki.openstreetmap.eu",
            "wiki.openstreetmap.pro", "wiki.openstreetmaps.org"]
   directory "/srv/wiki.openstreetmap.org"
+
+  fpm_max_children 50
+  fpm_start_servers 10
+  fpm_min_spare_servers 10
+  fpm_max_spare_servers 20
+  fpm_prometheus_port 9253
 
   database_name "wiki"
   database_user "wiki-user"
@@ -78,7 +82,7 @@ end
 
 mediawiki_extension "OsmWikibase" do
   site "wiki.openstreetmap.org"
-  repository "git://github.com/nyurik/OsmWikibase.git"
+  repository "https://github.com/nyurik/OsmWikibase.git"
   reference "master"
 end
 
@@ -108,20 +112,20 @@ end
 cookbook_file "/srv/wiki.openstreetmap.org/osm_logo_wiki.png" do
   owner node[:mediawiki][:user]
   group node[:mediawiki][:group]
-  mode 0o644
+  mode "644"
 end
 
 template "/srv/wiki.openstreetmap.org/robots.txt" do
   owner node[:mediawiki][:user]
   group node[:mediawiki][:group]
-  mode 0o644
+  mode "644"
   source "robots.txt.erb"
 end
 
 cookbook_file "/srv/wiki.openstreetmap.org/favicon.ico" do
   owner node[:mediawiki][:user]
   group node[:mediawiki][:group]
-  mode 0o644
+  mode "644"
 end
 
 directory "/srv/wiki.openstreetmap.org/dump" do
@@ -130,10 +134,9 @@ directory "/srv/wiki.openstreetmap.org/dump" do
   mode "0775"
 end
 
-template "/etc/cron.d/wiki-dump" do
-  owner "root"
-  group "root"
-  mode 0o644
-  source "wiki-dump.erb"
-  variables :directory => "/srv/wiki.openstreetmap.org"
+cron_d "wiki-dump" do
+  minute "0"
+  hour "2"
+  user "wiki"
+  command "cd /srv/wiki.openstreetmap.org && php w/maintenance/dumpBackup.php --full --quiet --output=gzip:dump/dump.xml.gz"
 end

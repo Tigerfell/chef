@@ -2,26 +2,15 @@ name "forum"
 description "Role applied to all forum servers"
 
 default_attributes(
-  :accounts => {
-    :users => {
-      :lambertus => {
-        :status => :administrator
-      },
-      :forum => {
-        :status => :role,
-        :members => [:lambertus, :grant]
-      }
-    }
-  },
   :apache => {
-    :mpm => "prefork",
+    :mpm => "event",
     :timeout => 60,
-    :keepalive => false,
-    :prefork => {
-      :start_servers => 20,
-      :min_spare_servers => 20,
-      :max_spare_servers => 50,
-      :max_request_workers => 256
+    :event => {
+      :server_limit => 18,
+      :max_request_workers => 450,
+      :min_spare_threads => 50,
+      :max_spare_threads => 150,
+      :listen_cores_buckets_ratio => 4
     }
   }
 )

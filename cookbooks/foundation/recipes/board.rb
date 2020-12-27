@@ -25,6 +25,7 @@ mediawiki_site "board.osmfoundation.org" do
   sitename "OSMF Board Wiki"
   metanamespace "OSMFBoard"
   directory "/srv/board.osmfoundation.org"
+  fpm_prometheus_port 11004
   database_name "board-wiki"
   database_user "board-wikiuser"
   database_password passwords["board"]["database"]
@@ -36,10 +37,11 @@ mediawiki_site "board.osmfoundation.org" do
   private_site true
   recaptcha_public_key "6LflIQATAAAAAMXyDWpba-FgipVzE-aGF4HIR59N"
   recaptcha_private_key passwords["board"]["recaptcha"]
+  version "1.34"
 end
 
 cookbook_file "/srv/board.osmfoundation.org/Wiki.png" do
   owner node[:mediawiki][:user]
   group node[:mediawiki][:group]
-  mode 0o644
+  mode "644"
 end

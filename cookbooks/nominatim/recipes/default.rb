@@ -17,20 +17,24 @@
 # limitations under the License.
 #
 
+include_recipe "accounts"
+include_recipe "munin"
+include_recipe "php::fpm"
+
 basedir = data_bag_item("accounts", "nominatim")["home"]
 email_errors = data_bag_item("accounts", "lonvia")["email"]
 
 directory basedir do
   owner "nominatim"
   group "nominatim"
-  mode 0o755
+  mode "755"
   recursive true
 end
 
 directory node[:nominatim][:logdir] do
   owner "nominatim"
   group "nominatim"
-  mode 0o755
+  mode "755"
   recursive true
 end
 
@@ -38,14 +42,25 @@ file "#{node[:nominatim][:logdir]}/query.log" do
   action :create_if_missing
   owner "www-data"
   group "adm"
-  mode 0o664
+  mode "664"
 end
 
 file "#{node[:nominatim][:logdir]}/update.log" do
   action :create_if_missing
   owner "nominatim"
   group "adm"
-  mode 0o664
+  mode "664"
+end
+
+# exception granted for a limited time so that they can set up their own server
+firewall_rule "increase-limits-gnome-proxy" do
+  action :accept
+  family "inet"
+  source "net:8.43.85.23"
+  dest "fw"
+  proto "tcp:syn"
+  dest_ports "https"
+  rate_limit "s:10/sec:30"
 end
 
 ## Postgresql
@@ -55,7 +70,6 @@ include_recipe "postgresql"
 postgresql_version = node[:nominatim][:dbcluster].split("/").first
 postgis_version = node[:nominatim][:postgis]
 
-package "postgis"
 package "postgresql-#{postgresql_version}-postgis-#{postgis_version}"
 
 node[:nominatim][:dbadmins].each do |user|
@@ -85,17 +99,17 @@ end
 directory "#{basedir}/tablespaces" do
   owner "postgres"
   group "postgres"
-  mode 0o700
+  mode "700"
 end
 
-# Note: tablespaces must be exactly in the same location on each
+# NOTE: tablespaces must be exactly in the same location on each
 #       Nominatim instance when replication is in use. Therefore
 #       use symlinks to canonical directory locations.
 node[:nominatim][:tablespaces].each do |name, location|
   directory location do
     owner "postgres"
     group "postgres"
-    mode 0o700
+    mode "700"
     recursive true
   end
 
@@ -119,14 +133,14 @@ if node[:nominatim][:state] == "master"
   directory node[:rsyncd][:modules][:archive][:path] do
     owner "postgres"
     group "postgres"
-    mode 0o700
+    mode "700"
   end
 
   template "/usr/local/bin/clean-db-nominatim" do
     source "clean-db-nominatim.erb"
     owner "root"
     group "root"
-    mode 0o755
+    mode "755"
     variables :archive_dir => node[:rsyncd][:modules][:archive][:path],
               :update_stop_file => "#{basedir}/status/updates_disabled",
               :streaming_clients => search(:node, "nominatim_state:slave").map { |slave| slave[:fqdn] }.join(" ")
@@ -151,16 +165,21 @@ package %w[
   libpq-dev
   libgeos++-dev
   libproj-dev
+  python3-pyosmium
   pyosmium
+  python3-psycopg2
+  php-pgsql
+  php-intl
 ]
 
 source_directory = "#{basedir}/nominatim"
 build_directory = "#{basedir}/bin"
+ui_directory = "#{basedir}/ui"
 
 directory build_directory do
   owner "nominatim"
   group "nominatim"
-  mode 0o755
+  mode "755"
   recursive true
 end
 
@@ -191,7 +210,7 @@ template "#{source_directory}/.git/hooks/post-merge" do
   source "git-post-merge-hook.erb"
   owner "nominatim"
   group "nominatim"
-  mode 0o755
+  mode "755"
   variables :srcdir => source_directory,
             :builddir => build_directory,
             :dbname => node[:nominatim][:dbname]
@@ -201,11 +220,26 @@ template "#{build_directory}/settings/local.php" do
   source "settings.erb"
   owner "nominatim"
   group "nominatim"
-  mode 0o664
+  mode "664"
   variables :base_url => node[:nominatim][:state] == "off" ? node[:fqdn] : "nominatim.openstreetmap.org",
             :dbname => node[:nominatim][:dbname],
             :flatnode_file => node[:nominatim][:flatnode_file],
             :log_file => "#{node[:nominatim][:logdir]}/query.log"
+end
+
+git ui_directory do
+  action :sync
+  repository node[:nominatim][:ui_repository]
+  revision node[:nominatim][:ui_revision]
+  user "nominatim"
+  group "nominatim"
+end
+
+template "#{ui_directory}/dist/config.js" do
+  source "ui-config.js.erb"
+  owner "nominatim"
+  group "nominatim"
+  mode "664"
 end
 
 if node[:nominatim][:flatnode_file]
@@ -218,12 +252,11 @@ template "/etc/logrotate.d/nominatim" do
   source "logrotate.nominatim.erb"
   owner "root"
   group "root"
-  mode 0o644
+  mode "644"
 end
 
 external_data = [
-  "wikipedia_article.sql.bin",
-  "wikipedia_redirect.sql.bin",
+  "wikimedia-importance.sql.gz",
   "gb_postcode_data.sql.gz"
 ]
 
@@ -233,7 +266,7 @@ external_data.each do |fname|
     source "https://www.nominatim.org/data/#{fname}"
     owner "nominatim"
     group "nominatim"
-    mode 0o644
+    mode "644"
   end
 end
 
@@ -242,25 +275,67 @@ remote_file "#{source_directory}/data/country_osm_grid.sql.gz" do
   source "https://www.nominatim.org/data/country_grid.sql.gz"
   owner "nominatim"
   group "nominatim"
-  mode 0o644
+  mode "644"
 end
 
-template "/etc/cron.d/nominatim" do
-  action node[:nominatim][:state] == "off" ? :delete : :create
-  source "nominatim.cron.erb"
-  owner "root"
-  group "root"
-  mode "0644"
-  variables :bin_directory => "#{source_directory}/utils",
-            :mailto => email_errors,
-            :update_maintenance_trigger => "#{basedir}/status/update_maintenance"
+if node[:nominatim][:state] == "off"
+  cron_d "nominatim-backup" do
+    action :delete
+  end
+
+  cron_d "nominatim-vacuum-db" do
+    action :delete
+  end
+
+  cron_d "nominatim-clean-db" do
+    action :delete
+  end
+
+  cron_d "nominatim-update-maintenance-trigger" do
+    action :delete
+  end
+else
+  cron_d "nominatim-backup" do
+    action node[:nominatim][:enable_backup] ? :create : :delete
+    minute "0"
+    hour "3"
+    day "1"
+    user "nominatim"
+    command "/usr/local/bin/backup-nominatim"
+    mailto email_errors
+  end
+
+  cron_d "nominatim-vacuum-db" do
+    minute "20"
+    hour "0"
+    user "postgres"
+    command "/usr/local/bin/vacuum-db-nominatim"
+    mailto email_errors
+  end
+
+  cron_d "nominatim-clean-db" do
+    action node[:nominatim][:state] == "master" ? :create : :delete
+    minute "5"
+    hour "*/4"
+    user "postgres"
+    command "/usr/local/bin/clean-db-nominatim"
+    mailto email_errors
+  end
+
+  cron_d "nominatim-update-maintenance-trigger" do
+    minute "18"
+    hour "1"
+    user "nominatim"
+    command "touch #{basedir}/status/update_maintenance"
+    mailto email_errors
+  end
 end
 
 template "#{source_directory}/utils/nominatim-update" do
   source "updater.erb"
   user "nominatim"
   group "nominatim"
-  mode 0o755
+  mode "755"
   variables :bindir => build_directory,
             :srcdir => source_directory,
             :logfile => "#{node[:nominatim][:logdir]}/update.log",
@@ -273,7 +348,7 @@ template "/etc/init.d/nominatim-update" do
   source "updater.init.erb"
   user "nominatim"
   group "nominatim"
-  mode 0o755
+  mode "755"
   variables :source_directory => source_directory
 end
 
@@ -282,93 +357,79 @@ end
     source "#{fname}.erb"
     owner "root"
     group "root"
-    mode 0o755
+    mode "755"
     variables :db => node[:nominatim][:dbname]
   end
 end
 
 ## webserver frontend
 
-template "#{build_directory}/settings/ip_blocks.conf" do
-  action :create_if_missing
-  source "ipblocks.erb"
+directory "#{basedir}/etc" do
   owner "nominatim"
-  group "nominatim"
-  mode 0o664
+  group "adm"
+  mode "775"
 end
 
-file "#{build_directory}/settings/apache_blocks.conf" do
-  action :create_if_missing
-  owner "nominatim"
-  group "nominatim"
-  mode 0o664
-end
-
-file "#{build_directory}/settings/ip_blocks.map" do
-  action :create_if_missing
-  owner "nominatim"
-  group "nominatim"
-  mode 0o664
-end
-
-include_recipe "apache"
-
-package "php"
-package "php-fpm"
-package "php-pgsql"
-package "php-intl"
-
-apache_module "rewrite"
-apache_module "proxy"
-apache_module "proxy_fcgi"
-apache_module "proxy_http"
-apache_module "headers"
-
-service "php7.2-fpm" do
-  action [:enable, :start]
-  supports :status => true, :restart => true, :reload => true
-end
-
-node[:nominatim][:fpm_pools].each do |name, data|
-  template "/etc/php/7.2/fpm/pool.d/#{name}.conf" do
-    source "fpm.conf.erb"
-    owner "root"
-    group "root"
-    mode 0o644
-    variables data.merge(:name => name)
-    notifies :reload, "service[php7.2-fpm]"
+%w[user_agent referrer email generic].each do |name|
+  file "#{basedir}/etc/nginx_blocked_#{name}.conf" do
+    action :create_if_missing
+    owner "nominatim"
+    group "adm"
+    mode "664"
   end
 end
 
-ssl_certificate "nominatim.openstreetmap.org" do
-  domains ["nominatim.openstreetmap.org",
+node[:nominatim][:fpm_pools].each do |name, data|
+  php_fpm name do
+    port data[:port]
+    pm data[:pm]
+    pm_max_children data[:max_children]
+    pm_start_servers 20
+    pm_min_spare_servers 10
+    pm_max_spare_servers 20
+    pm_max_requests 10000
+    prometheus_port data[:prometheus_port]
+  end
+end
+
+ssl_certificate node[:fqdn] do
+  domains [node[:fqdn],
+           "nominatim.openstreetmap.org",
            "nominatim.osm.org",
            "nominatim.openstreetmap.com",
            "nominatim.openstreetmap.net",
            "nominatim.openstreetmaps.org",
            "nominatim.openmaps.org"]
-  notifies :reload, "service[apache2]"
+  notifies :reload, "service[nginx]"
 end
 
-apache_site "nominatim.openstreetmap.org" do
-  template "apache.erb"
+package "apache2" do
+  action :remove
+end
+
+include_recipe "nginx"
+
+nginx_site "default" do
+  action [:delete]
+end
+
+frontends = search(:node, "recipes:web\\:\\:frontend").sort_by(&:name)
+
+nginx_site "nominatim" do
+  template "nginx.erb"
   directory build_directory
-  variables :pools => node[:nominatim][:fpm_pools]
-  only_if { node[:nominatim][:state] != "off" }
+  variables :pools => node[:nominatim][:fpm_pools],
+            :frontends => frontends,
+            :confdir => "#{basedir}/etc",
+            :ui_directory => ui_directory
 end
 
-apache_site "default" do
-  action [:disable]
-end
-
-template "/etc/logrotate.d/apache2" do
-  source "logrotate.apache.erb"
+template "/etc/logrotate.d/nginx" do
+  source "logrotate.nginx.erb"
   owner "root"
   group "root"
-  mode 0o644
+  mode "644"
 end
-
-include_recipe "fail2ban"
 
 munin_plugin_conf "nominatim" do
   template "munin.erb"
@@ -388,12 +449,20 @@ munin_plugin "nominatim_requests" do
   target "#{source_directory}/munin/nominatim_requests_querylog"
 end
 
-munin_plugin "nominatim_throttled_ips" do
-  target "#{source_directory}/munin/nominatim_throttled_ips"
-end
-
 directory "#{basedir}/status" do
   owner "nominatim"
   group "postgres"
-  mode 0o775
+  mode "775"
+end
+
+include_recipe "fail2ban"
+
+frontend_addresses = frontends.collect { |f| f.ipaddresses(:role => :external) }
+
+fail2ban_jail "nominatim_limit_req" do
+  filter "nginx-limit-req"
+  logpath "#{node[:nominatim][:logdir]}/nominatim.openstreetmap.org-error.log"
+  ports [80, 443]
+  maxretry 5
+  ignoreips frontend_addresses.flatten.sort
 end
